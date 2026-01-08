@@ -2,17 +2,17 @@
  * © 2021 Thoughtworks, Inc.
  */
 
-import path from 'path'
-import fs from 'fs'
-import AWSMock from 'aws-sdk-mock'
 import AWS from 'aws-sdk'
+import AWSMock from 'aws-sdk-mock'
+import fs from 'fs'
+import path from 'path'
 
+import { FootprintResponse } from '@cloud-carbon-footprint/common'
+import cli from '../cli'
 import {
   mockAwsCloudWatchGetMetricData,
   mockAwsCostExplorerGetCostAndUsage,
 } from './fixtures/awsMockFunctions'
-import cli from '../cli'
-import { EstimationResult } from '@cloud-carbon-footprint/common'
 
 const mockGetCostAndEstimates = jest.fn()
 const mockGetFilterData = jest.fn()
@@ -128,7 +128,13 @@ describe('csv test', () => {
 
   beforeEach(() => {
     jest.spyOn(Date, 'now').mockImplementation(() => 1596660091000)
-    const expectedResponse: EstimationResult[] = []
+    const expectedResponse: FootprintResponse = {
+      estimates: [],
+      calculationConstants: {
+        cloudProviderConstants: {},
+        emissionsFactors: {},
+      },
+    }
     mockGetCostAndEstimates.mockResolvedValueOnce(expectedResponse)
   })
 

@@ -3,6 +3,7 @@
  */
 
 import { reduceBy } from 'ramda'
+import { CalculationConstants } from './CalculationConstants'
 import { GroupBy } from './Config'
 import { getPeriodEndDate } from './helpers'
 
@@ -12,6 +13,17 @@ export interface EstimationResult {
   periodStartDate?: Date
   periodEndDate?: Date
   groupBy: GroupBy
+}
+
+/**
+ * Complete response from the footprint API including both estimates
+ * and the calculation constants used to compute them.
+ */
+export interface FootprintResponse {
+  /** Array of estimation results grouped by timestamp */
+  estimates: EstimationResult[]
+  /** Constants used in the calculations (PUE, emissions factors, coefficients, etc.) */
+  calculationConstants: CalculationConstants
 }
 
 export interface ServiceData {

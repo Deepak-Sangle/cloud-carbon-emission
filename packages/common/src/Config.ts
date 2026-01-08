@@ -1,10 +1,10 @@
 /*
  * © 2021 Thoughtworks, Inc.
  */
-import fs from 'fs'
 import dotenv from 'dotenv'
+import fs from 'fs'
 import { AWS_RECOMMENDATIONS_SERVICES } from './RecommendationsService'
-import { AccountDetailsOrIdList } from './Types'
+import { AccountDetailsOrIdList, AWSBillingAccountConfig } from './Types'
 
 dotenv.config()
 
@@ -26,6 +26,7 @@ export interface CCFConfig {
     CURRENT_REGIONS?: string[]
     RESOURCE_TAG_NAMES?: string[]
     accounts?: AccountDetailsOrIdList
+    billingAccounts?: AWSBillingAccountConfig[]
     authentication?: {
       mode: string
       options?: Record<string, string>
@@ -90,6 +91,7 @@ export interface CCFConfig {
     URI?: string
     CREDENTIALS?: string
   }
+  DATABASE_URL?: string
   ELECTRICITY_MAPS_TOKEN?: string
 }
 
@@ -106,13 +108,20 @@ export type QUERY_DATE_TYPES = {
 }
 
 // this check allows for aws auth to determine how to correctly partition by region when credentializing
-const checkAthenaRegionISAWSGlobal = (athena_region: string): boolean => {
-  const AWS_CN_REGIONS = ['cn-north-1', 'cn-northwest-1']
-  return !AWS_CN_REGIONS.includes(athena_region)
-}
+// const checkAthenaRegionISAWSGlobal = (athena_region: string): boolean => {
+//   const AWS_CN_REGIONS = ['cn-north-1', 'cn-northwest-1']
+//   return !AWS_CN_REGIONS.includes(athena_region)
+// }
 
 const getAWSAccounts = () => {
   return process.env.AWS_ACCOUNTS ? process.env.AWS_ACCOUNTS : '[]'
+}
+
+const getAWSBillingAccounts = (): AWSBillingAccountConfig[] => {
+  if (process.env.AWS_BILLING_ACCOUNTS) {
+    return JSON.parse(process.env.AWS_BILLING_ACCOUNTS)
+  }
+  return []
 }
 
 const getAWSResourceTagNames = () => {
@@ -165,11 +174,17 @@ const getConfig = (): CCFConfig => ({
     ATHENA_QUERY_RESULT_LOCATION:
       getEnvVar('AWS_ATHENA_QUERY_RESULT_LOCATION') || '',
     ATHENA_REGION: getEnvVar('AWS_ATHENA_REGION'),
-    IS_AWS_GLOBAL: checkAthenaRegionISAWSGlobal(getEnvVar('AWS_ATHENA_REGION')),
+    IS_AWS_GLOBAL: true,
+    // pass in a single account here because the authentication mode is not an array
+    // the accounts and authentication mode makes the application dynamic for multiple accounts
     accounts: JSON.parse(getAWSAccounts()) || [],
+    billingAccounts: getAWSBillingAccounts(),
     authentication: {
       mode: getEnvVar('AWS_AUTH_MODE') || 'default',
       options: {
+        externalId: getEnvVar('AWS_EXTERNAL_ID') || '',
+        accessKeyId: getEnvVar('AWS_ACCESS_KEY_ID') || '',
+        secretAccessKey: getEnvVar('AWS_SECRET_ACCESS_KEY') || '',
         targetRoleName: getEnvVar('AWS_TARGET_ACCOUNT_ROLE_NAME'),
         proxyAccountId: getEnvVar('AWS_PROXY_ACCOUNT_ID') || '',
         proxyRoleName: getEnvVar('AWS_PROXY_ROLE_NAME') || '',
@@ -309,6 +324,7 @@ const getConfig = (): CCFConfig => ({
     URI: getEnvVar('MONGODB_URI') || '',
     CREDENTIALS: getEnvVar('MONGODB_CREDENTIALS') || '',
   },
+  DATABASE_URL: getEnvVar('DATABASE_URL') || '',
   ELECTRICITY_MAPS_TOKEN: getEnvVar('ELECTRICITY_MAPS_TOKEN') || '',
 })
 

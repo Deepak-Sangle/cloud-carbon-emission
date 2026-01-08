@@ -2,11 +2,15 @@
  * © 2021 Thoughtworks, Inc.
  */
 
-import express from 'express'
-import { setConfig, CCFConfig } from '@cloud-carbon-footprint/common'
 import {
-  FootprintApiMiddleware,
+  CCFConfig,
+  isDatabaseConnected,
+  setConfig,
+} from '@cloud-carbon-footprint/common'
+import express from 'express'
+import {
   EmissionsApiMiddleware,
+  FootprintApiMiddleware,
   RecommendationsApiMiddleware,
 } from './middleware'
 
@@ -18,10 +22,10 @@ export const createRouter = (config?: CCFConfig) => {
   /**
    * @openapi
    * /api/footprint:
-   *  get:
+   *  post:
    *     tags:
    *     - Footprint
-   *     summary: Gets calculated energy and carbon estimates for a given date range
+   *     summary: Gets calculated energy and carbon estimates for a given date range, along with the calculation constants used
    *     produces:
    *       - application/json
    *     parameters:
@@ -103,15 +107,24 @@ export const createRouter = (config?: CCFConfig) => {
    *            type: string
    *        description: List of resource tags to include in estimates (MongoDB only, Filter)
    *        required: false
+   *     requestBody:
+   *       description: Optional configuration overrides to merge with the default CCF configuration
+   *       required: false
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               config:
+   *                 type: object
+   *                 description: Partial CCFConfig object with override values
    *     responses:
    *       200:
    *         description: Success
    *         content:
    *          application/json:
    *            schema:
-   *                type: array
-   *                items:
-   *                  $ref: '#/components/schemas/FootprintResponse'
+   *              $ref: '#/components/schemas/FootprintApiResponse'
    *       400:
    *         description: Bad request
    *       416:
@@ -119,7 +132,7 @@ export const createRouter = (config?: CCFConfig) => {
    *       500:
    *         description: Internal Server Error
    */
-  router.get('/footprint', FootprintApiMiddleware)
+  router.post('/footprint', FootprintApiMiddleware)
 
   /**
    * @openapi
@@ -181,6 +194,53 @@ export const createRouter = (config?: CCFConfig) => {
   router.get('/healthz', (req: express.Request, res: express.Response) => {
     res.status(200).send('OK')
   })
+
+  /**
+   * @openapi
+   * /api/healthz/db:
+   *  get:
+   *     tags:
+   *     - Healthcheck
+   *     description: Checks if the database connection is healthy
+   *     responses:
+   *       200:
+   *         description: Database is connected and healthy
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 status:
+   *                   type: string
+   *                   example: healthy
+   *                 database:
+   *                   type: string
+   *                   example: connected
+   *       503:
+   *         description: Database is not available
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 status:
+   *                   type: string
+   *                   example: unhealthy
+   *                 database:
+   *                   type: string
+   *                   example: disconnected
+   */
+  router.get(
+    '/healthz/db',
+    async (req: express.Request, res: express.Response) => {
+      const isConnected = await isDatabaseConnected()
+      if (isConnected) {
+        res.status(200).json({ status: 'healthy', database: 'connected' })
+      } else {
+        res.status(503).json({ status: 'unhealthy', database: 'disconnected' })
+      }
+    },
+  )
 
   return router
 }

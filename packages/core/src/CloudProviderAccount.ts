@@ -1,16 +1,16 @@
 /*
  * © 2021 Thoughtworks, Inc.
  */
-import { union } from 'ramda'
 import {
   EstimationResult,
   GroupBy,
   reduceByTimestamp,
 } from '@cloud-carbon-footprint/common'
+import { union } from 'ramda'
 
-import { aggregateCostsByDay, Cost } from './cost'
-import { Region, FootprintEstimate, aggregateEstimatesByDay } from '.'
 import moment from 'moment'
+import { aggregateEstimatesByDay, FootprintEstimate, Region } from '.'
+import { aggregateCostsByDay, Cost } from './cost'
 
 export default class CloudProviderAccount {
   id?: string

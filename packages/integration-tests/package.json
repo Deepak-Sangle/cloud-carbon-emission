@@ -19,18 +19,14 @@
     "@testing-library/testcafe": "^5.0.0",
     "concurrently": "^7.0.0",
     "eslint": "^8.6.0",
-    "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-prettier": "^4.0.0",
     "eslint-plugin-testcafe": "^0.2.1",
     "lint-staged": "^12.1.7",
-    "prettier": "^2.5.1",
     "testcafe": "^3.7.2",
     "wait-on": "^6.0.0"
   },
   "lint-staged": {
     "*.js": [
-      "yarn lint",
-      "prettier --write --ignore-unknown --config ../../.prettierrc.json"
+      "yarn lint"
     ]
   }
 }

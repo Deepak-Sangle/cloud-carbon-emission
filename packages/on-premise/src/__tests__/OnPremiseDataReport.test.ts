@@ -2,19 +2,22 @@
  * © 2021 Thoughtworks, Inc.
  */
 
-import { ComputeEstimator, MemoryEstimator } from '@cloud-carbon-footprint/core'
+import {
+  ComputeEstimator,
+  MemoryEstimator,
+} from "@cloud-carbon-footprint/core";
 
 import {
   OnPremiseDataInput,
   OnPremiseDataOutput,
   configLoader,
-} from '@cloud-carbon-footprint/common'
+} from "@cloud-carbon-footprint/common";
 
-import { OnPremiseDataReport } from '../lib'
-import { ON_PREMISE_CLOUD_CONSTANTS } from '../domain'
+import { ON_PREMISE_CLOUD_CONSTANTS } from "../domain";
+import { OnPremiseDataReport } from "../lib";
 
-jest.mock('@cloud-carbon-footprint/common', () => ({
-  ...(jest.requireActual('@cloud-carbon-footprint/common') as Record<
+jest.mock("@cloud-carbon-footprint/common", () => ({
+  ...(jest.requireActual("@cloud-carbon-footprint/common") as Record<
     string,
     unknown
   >),
@@ -34,49 +37,49 @@ jest.mock('@cloud-carbon-footprint/common', () => ({
           AVERAGE_WATTS: undefined,
         },
       },
-    }
+    };
   }),
-}))
+}));
 
 const mockDataInput: OnPremiseDataInput[] = [
   {
-    cpuDescription: 'Intel(R) Xeon(R) Silver 4114 CPU @ 2.20GHz',
-    machineName: 'test-machine-name',
+    cpuDescription: "Intel(R) Xeon(R) Silver 4114 CPU @ 2.20GHz",
+    machineName: "test-machine-name",
     memory: 127.626953125,
-    machineType: 'server',
-    startTime: new Date('2022-01-17T13:38:18Z'),
-    endTime: new Date('2022-01-24T18:22:29.918423Z'),
-    country: 'United States',
+    machineType: "server",
+    startTime: new Date("2022-01-17T13:38:18Z"),
+    endTime: new Date("2022-01-24T18:22:29.918423Z"),
+    country: "United States",
     cost: 93.12,
     dailyUptime: 4,
     weeklyUptime: 12,
     monthlyUptime: 36,
     annualUptime: 36,
   },
-]
+];
 
-describe('On-Premise Data Report', () => {
+describe("On-Premise Data Report", () => {
   afterEach(() => {
-    jest.clearAllMocks()
-  })
+    jest.clearAllMocks();
+  });
 
-  it('Returns estimates for Compute', () => {
+  it("Returns estimates for Compute", () => {
     const onPremiseDataReport = new OnPremiseDataReport(
       new ComputeEstimator(),
-      new MemoryEstimator(ON_PREMISE_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-    )
+      new MemoryEstimator(ON_PREMISE_CLOUD_CONSTANTS.MEMORY_COEFFICIENT ?? 0)
+    );
 
-    const result = onPremiseDataReport.getEstimates(mockDataInput)
+    const result = onPremiseDataReport.getEstimates(mockDataInput);
 
     const expectedResult: OnPremiseDataOutput[] = [
       {
-        cpuDescription: 'Intel(R) Xeon(R) Silver 4114 CPU @ 2.20GHz',
-        machineName: 'test-machine-name',
+        cpuDescription: "Intel(R) Xeon(R) Silver 4114 CPU @ 2.20GHz",
+        machineName: "test-machine-name",
         memory: 127.626953125,
-        machineType: 'server',
-        startTime: new Date('2022-01-17T13:38:18Z'),
-        endTime: new Date('2022-01-24T18:22:29.918423Z'),
-        country: 'United States',
+        machineType: "server",
+        startTime: new Date("2022-01-17T13:38:18Z"),
+        endTime: new Date("2022-01-24T18:22:29.918423Z"),
+        country: "United States",
         cost: 93.12,
         dailyCo2e: 0.00110105866376,
         dailyKilowattHours: 2.597204,
@@ -91,33 +94,33 @@ describe('On-Premise Data Report', () => {
         annualKilowattHours: 23.374836000000002,
         annualUptime: 36,
       },
-    ]
-    expect(result).toEqual(expectedResult)
-  })
+    ];
+    expect(result).toEqual(expectedResult);
+  });
 
-  it('Returns estimates for Compute + Memory', () => {
+  it("Returns estimates for Compute + Memory", () => {
     const newMockDataInput = [
       {
         ...mockDataInput[0],
       },
-    ]
-    newMockDataInput[0].memory = 1319.033203125
+    ];
+    newMockDataInput[0].memory = 1319.033203125;
     const onPremiseDataReport = new OnPremiseDataReport(
       new ComputeEstimator(),
-      new MemoryEstimator(ON_PREMISE_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-    )
+      new MemoryEstimator(ON_PREMISE_CLOUD_CONSTANTS.MEMORY_COEFFICIENT ?? 0)
+    );
 
-    const result = onPremiseDataReport.getEstimates(newMockDataInput)
+    const result = onPremiseDataReport.getEstimates(newMockDataInput);
 
     const expectedResult: OnPremiseDataOutput[] = [
       {
-        cpuDescription: 'Intel(R) Xeon(R) Silver 4114 CPU @ 2.20GHz',
-        machineName: 'test-machine-name',
+        cpuDescription: "Intel(R) Xeon(R) Silver 4114 CPU @ 2.20GHz",
+        machineName: "test-machine-name",
         memory: 1319.033203125,
-        machineType: 'server',
-        startTime: new Date('2022-01-17T13:38:18Z'),
-        endTime: new Date('2022-01-24T18:22:29.918423Z'),
-        country: 'United States',
+        machineType: "server",
+        startTime: new Date("2022-01-17T13:38:18Z"),
+        endTime: new Date("2022-01-24T18:22:29.918423Z"),
+        country: "United States",
         cost: 93.12,
         dailyCo2e: 0.0017038150194880932,
         dailyKilowattHours: 4.0190003762044,
@@ -132,40 +135,40 @@ describe('On-Premise Data Report', () => {
         annualKilowattHours: 36.171003385839605,
         annualUptime: 36,
       },
-    ]
-    expect(result).toEqual(expectedResult)
-  })
+    ];
+    expect(result).toEqual(expectedResult);
+  });
 
-  it('Returns estimates with configured serverUtilization and pue with US region', () => {
+  it("Returns estimates with configured serverUtilization and pue with US region", () => {
     const newMockDataInput = [
       {
         ...mockDataInput[0],
       },
-    ]
-    newMockDataInput[0].memory = 1319.033203125
-    newMockDataInput[0].cpuUtilization = 45
-    newMockDataInput[0].powerUsageEffectiveness = 1.45
-    newMockDataInput[0].region = 'Texas'
+    ];
+    newMockDataInput[0].memory = 1319.033203125;
+    newMockDataInput[0].cpuUtilization = 45;
+    newMockDataInput[0].powerUsageEffectiveness = 1.45;
+    newMockDataInput[0].region = "Texas";
 
     const onPremiseDataReport = new OnPremiseDataReport(
       new ComputeEstimator(),
-      new MemoryEstimator(ON_PREMISE_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-    )
+      new MemoryEstimator(ON_PREMISE_CLOUD_CONSTANTS.MEMORY_COEFFICIENT ?? 0)
+    );
 
-    const result = onPremiseDataReport.getEstimates(newMockDataInput)
+    const result = onPremiseDataReport.getEstimates(newMockDataInput);
 
     const expectedResult: OnPremiseDataOutput[] = [
       {
-        cpuDescription: 'Intel(R) Xeon(R) Silver 4114 CPU @ 2.20GHz',
-        machineName: 'test-machine-name',
+        cpuDescription: "Intel(R) Xeon(R) Silver 4114 CPU @ 2.20GHz",
+        machineName: "test-machine-name",
         memory: 1319.033203125,
-        machineType: 'server',
-        startTime: new Date('2022-01-17T13:38:18Z'),
-        endTime: new Date('2022-01-24T18:22:29.918423Z'),
-        country: 'United States',
+        machineType: "server",
+        startTime: new Date("2022-01-17T13:38:18Z"),
+        endTime: new Date("2022-01-24T18:22:29.918423Z"),
+        country: "United States",
         cost: 93.12,
         powerUsageEffectiveness: 1.45,
-        region: 'Texas',
+        region: "Texas",
         cpuUtilization: 45,
         dailyCo2e: 0.0014507556207668734,
         dailyKilowattHours: 3.501534130061,
@@ -180,42 +183,42 @@ describe('On-Premise Data Report', () => {
         annualKilowattHours: 31.513807170548997,
         annualUptime: 36,
       },
-    ]
-    expect(result).toEqual(expectedResult)
-  })
+    ];
+    expect(result).toEqual(expectedResult);
+  });
 
-  it('Estimates using average values for region, memory and watts as default', () => {
+  it("Estimates using average values for region, memory and watts as default", () => {
     const newMockDataInput: OnPremiseDataInput[] = [
       {
-        cpuDescription: 'Intel(R) Xeon(R) Amber 4114 CPU @ 2.20GHz',
-        machineName: 'test-machine-name',
+        cpuDescription: "Intel(R) Xeon(R) Amber 4114 CPU @ 2.20GHz",
+        machineName: "test-machine-name",
         memory: 1319.033203125,
-        machineType: 'server',
+        machineType: "server",
         cost: 93.12,
-        startTime: new Date('2022-01-17T13:38:18Z'),
-        endTime: new Date('2022-01-24T18:22:29.918423Z'),
+        startTime: new Date("2022-01-17T13:38:18Z"),
+        endTime: new Date("2022-01-24T18:22:29.918423Z"),
         dailyUptime: 4,
         weeklyUptime: 12,
         monthlyUptime: 36,
         annualUptime: 36,
       },
-    ]
+    ];
 
     const onPremiseDataReport = new OnPremiseDataReport(
       new ComputeEstimator(),
-      new MemoryEstimator(ON_PREMISE_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-    )
+      new MemoryEstimator(ON_PREMISE_CLOUD_CONSTANTS.MEMORY_COEFFICIENT ?? 0)
+    );
 
-    const result = onPremiseDataReport.getEstimates(newMockDataInput)
+    const result = onPremiseDataReport.getEstimates(newMockDataInput);
 
     const expectedResult: OnPremiseDataOutput[] = [
       {
-        cpuDescription: 'Intel(R) Xeon(R) Amber 4114 CPU @ 2.20GHz',
-        machineName: 'test-machine-name',
+        cpuDescription: "Intel(R) Xeon(R) Amber 4114 CPU @ 2.20GHz",
+        machineName: "test-machine-name",
         memory: 1319.033203125,
-        machineType: 'server',
-        startTime: new Date('2022-01-17T13:38:18Z'),
-        endTime: new Date('2022-01-24T18:22:29.918423Z'),
+        machineType: "server",
+        startTime: new Date("2022-01-17T13:38:18Z"),
+        endTime: new Date("2022-01-24T18:22:29.918423Z"),
         cost: 93.12,
         dailyCo2e: 0.0012313338084172039,
         dailyKilowattHours: 3.814168262922688,
@@ -230,42 +233,42 @@ describe('On-Premise Data Report', () => {
         annualKilowattHours: 34.327514366304186,
         annualUptime: 36,
       },
-    ]
-    expect(result).toEqual(expectedResult)
-  })
+    ];
+    expect(result).toEqual(expectedResult);
+  });
 
-  it('uses default configurable values when machineType is invalid', () => {
+  it("uses default configurable values when machineType is invalid", () => {
     const newMockDataInput: OnPremiseDataInput[] = [
       {
-        cpuDescription: 'Intel(R) Xeon(R) Amber 4114 CPU @ 2.20GHz',
-        machineName: 'test-machine-name',
+        cpuDescription: "Intel(R) Xeon(R) Amber 4114 CPU @ 2.20GHz",
+        machineName: "test-machine-name",
         memory: 1319.033203125,
-        machineType: 'invalid',
-        startTime: new Date('2022-01-17T13:38:18Z'),
-        endTime: new Date('2022-01-24T18:22:29.918423Z'),
+        machineType: "invalid",
+        startTime: new Date("2022-01-17T13:38:18Z"),
+        endTime: new Date("2022-01-24T18:22:29.918423Z"),
         cost: 93.12,
         dailyUptime: 4,
         weeklyUptime: 12,
         monthlyUptime: 36,
         annualUptime: 36,
       },
-    ]
+    ];
 
     const onPremiseDataReport = new OnPremiseDataReport(
       new ComputeEstimator(),
-      new MemoryEstimator(ON_PREMISE_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-    )
+      new MemoryEstimator(ON_PREMISE_CLOUD_CONSTANTS.MEMORY_COEFFICIENT ?? 0)
+    );
 
-    const result = onPremiseDataReport.getEstimates(newMockDataInput)
+    const result = onPremiseDataReport.getEstimates(newMockDataInput);
 
     const expectedResult: OnPremiseDataOutput[] = [
       {
-        cpuDescription: 'Intel(R) Xeon(R) Amber 4114 CPU @ 2.20GHz',
-        machineName: 'test-machine-name',
+        cpuDescription: "Intel(R) Xeon(R) Amber 4114 CPU @ 2.20GHz",
+        machineName: "test-machine-name",
         memory: 1319.033203125,
-        machineType: 'invalid',
-        startTime: new Date('2022-01-17T13:38:18Z'),
-        endTime: new Date('2022-01-24T18:22:29.918423Z'),
+        machineType: "invalid",
+        startTime: new Date("2022-01-17T13:38:18Z"),
+        endTime: new Date("2022-01-24T18:22:29.918423Z"),
         cost: 93.12,
         dailyCo2e: 0.0012313338084172039,
         dailyKilowattHours: 3.814168262922688,
@@ -280,13 +283,13 @@ describe('On-Premise Data Report', () => {
         annualKilowattHours: 34.327514366304186,
         annualUptime: 36,
       },
-    ]
-    expect(result).toEqual(expectedResult)
-  })
+    ];
+    expect(result).toEqual(expectedResult);
+  });
 
   it.each([
     [
-      ['server', 'laptop', 'desktop'],
+      ["server", "laptop", "desktop"],
       45,
       undefined,
       2.3936684,
@@ -299,7 +302,7 @@ describe('On-Premise Data Report', () => {
       0.009132946033464,
     ],
     [
-      ['server', 'laptop', 'desktop'],
+      ["server", "laptop", "desktop"],
       undefined,
       350,
       2.212,
@@ -312,7 +315,7 @@ describe('On-Premise Data Report', () => {
       0.00843979752,
     ],
     [
-      ['laptop', 'server', 'desktop'],
+      ["laptop", "server", "desktop"],
       75,
       undefined,
       3.6148820000000006,
@@ -325,7 +328,7 @@ describe('On-Premise Data Report', () => {
       0.013792437675720002,
     ],
     [
-      ['laptop', 'server', 'desktop'],
+      ["laptop", "server", "desktop"],
       undefined,
       250,
       1.58,
@@ -338,7 +341,7 @@ describe('On-Premise Data Report', () => {
       0.0060284268,
     ],
     [
-      ['desktop', 'server', 'laptop'],
+      ["desktop", "server", "laptop"],
       60,
       undefined,
       3.0042752,
@@ -351,7 +354,7 @@ describe('On-Premise Data Report', () => {
       0.011462691854592,
     ],
     [
-      ['desktop', 'server', 'laptop'],
+      ["desktop", "server", "laptop"],
       undefined,
       300,
       1.896,
@@ -364,7 +367,7 @@ describe('On-Premise Data Report', () => {
       0.007234112159999999,
     ],
   ])(
-    'it should return configured values for averageWatts or cpuUtilization by machineType',
+    "it should return configured values for averageWatts or cpuUtilization by machineType",
     (
       machineType: string[],
       cpuUtilization: number | undefined,
@@ -376,9 +379,9 @@ describe('On-Premise Data Report', () => {
       monthlyKilowattHours: number,
       monthlyCo2e: number,
       annualKilowattHours: number,
-      annualCo2e: number,
+      annualCo2e: number
     ) => {
-      ;(configLoader as jest.Mock).mockReturnValue({
+      (configLoader as jest.Mock).mockReturnValue({
         ON_PREMISE: {
           [machineType[0].toUpperCase()]: {
             CPU_UTILIZATION: cpuUtilization,
@@ -393,31 +396,31 @@ describe('On-Premise Data Report', () => {
             AVERAGE_WATTS: undefined,
           },
         },
-      })
+      });
 
       const newMockDataInput = [
         {
           ...mockDataInput[0],
         },
-      ]
-      newMockDataInput[0].machineType = machineType[0]
+      ];
+      newMockDataInput[0].machineType = machineType[0];
 
       const onPremiseDataReport = new OnPremiseDataReport(
         new ComputeEstimator(),
-        new MemoryEstimator(ON_PREMISE_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      )
+        new MemoryEstimator(ON_PREMISE_CLOUD_CONSTANTS.MEMORY_COEFFICIENT ?? 0)
+      );
 
-      const result = onPremiseDataReport.getEstimates(newMockDataInput)
+      const result = onPremiseDataReport.getEstimates(newMockDataInput);
 
       const expectedResult: OnPremiseDataOutput[] = [
         {
-          cpuDescription: 'Intel(R) Xeon(R) Silver 4114 CPU @ 2.20GHz',
-          machineName: 'test-machine-name',
+          cpuDescription: "Intel(R) Xeon(R) Silver 4114 CPU @ 2.20GHz",
+          machineName: "test-machine-name",
           memory: 127.626953125,
           machineType: machineType[0],
-          startTime: new Date('2022-01-17T13:38:18Z'),
-          endTime: new Date('2022-01-24T18:22:29.918423Z'),
-          country: 'United States',
+          startTime: new Date("2022-01-17T13:38:18Z"),
+          endTime: new Date("2022-01-24T18:22:29.918423Z"),
+          country: "United States",
           cost: 93.12,
           dailyCo2e: dailyCo2e,
           dailyKilowattHours: dailyKilowattHours,
@@ -432,8 +435,8 @@ describe('On-Premise Data Report', () => {
           annualKilowattHours: annualKilowattHours,
           annualUptime: 36,
         },
-      ]
-      expect(result).toEqual(expectedResult)
-    },
-  )
-})
+      ];
+      expect(result).toEqual(expectedResult);
+    }
+  );
+});

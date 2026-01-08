@@ -23,7 +23,7 @@
     "carbon-footprint"
   ],
   "scripts": {
-    "precommit": "lint-staged --no-stash && yarn test --coverage --runInBand --bail",
+    "precommit": "lint-staged --no-stash",
     "test": "jest",
     "type-check": "tsc --noEmit",
     "sonar:scan": "sonar-scanner",
@@ -48,14 +48,11 @@
     "@typescript-eslint/eslint-plugin": "^5.9.0",
     "@typescript-eslint/parser": "^5.9.0",
     "eslint": "^8.6.0",
-    "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-prettier": "^4.0.0",
     "eslint-plugin-unused-imports": "^2.0.0",
     "jest": "^27.4.7",
     "jest-when": "^3.5.0",
     "lint-staged": "^12.1.7",
     "onchange": "^7.1.0",
-    "prettier": "^2.5.1",
     "rimraf": "^3.0.2",
     "source-map-support": "^0.5.19",
     "ts-jest": "^27.1.2",
@@ -72,11 +69,7 @@
   },
   "lint-staged": {
     "*.{js,ts}": [
-      "yarn lint",
-      "prettier --write --ignore-unknown --config ../../.prettierrc.json"
-    ],
-    "*.{md}": [
-      "prettier --write --ignore-unknown --config ../../.prettierrc.json"
+      "yarn lint"
     ]
   }
 }

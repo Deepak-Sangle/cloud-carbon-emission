@@ -5,9 +5,9 @@
 import {
   BaseExternalAccountClient,
   Compute,
+  Impersonated,
   JWT,
   UserRefreshClient,
-  Impersonated,
 } from 'google-auth-library'
 
 export type GoogleAuthClient =
@@ -23,3 +23,12 @@ export type AccountDetails = {
 }
 
 export type AccountDetailsOrIdList = AccountDetails[] | string[]
+
+export type AWSBillingAccountConfig = {
+  id: string
+  name: string
+  athenaDbName: string
+  athenaDbTable: string
+  athenaQueryResultLocation: string
+  athenaRegion: string
+}

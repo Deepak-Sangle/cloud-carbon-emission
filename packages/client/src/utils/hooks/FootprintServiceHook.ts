@@ -2,15 +2,19 @@
  * © 2021 Thoughtworks, Inc.
  */
 
-import { useEffect, useState } from 'react'
-import { equals } from 'ramda'
 import axios from 'axios'
+import { equals } from 'ramda'
+import { useEffect, useState } from 'react'
 
-import { EstimationResult } from '@cloud-carbon-footprint/common'
+import {
+  CalculationConstants,
+  EstimationResult,
+  FootprintResponse,
+} from '@cloud-carbon-footprint/common'
 
+import moment from 'moment'
 import { useAxiosErrorHandling } from '../../layout/ErrorPage'
 import { ServiceResult } from '../../Types'
-import moment from 'moment'
 
 export interface UseRemoteFootprintServiceParams {
   baseUrl: string | null
@@ -24,11 +28,18 @@ export interface UseRemoteFootprintServiceParams {
   limit?: number
 }
 
+export interface FootprintServiceResult
+  extends ServiceResult<EstimationResult> {
+  calculationConstants: CalculationConstants | null
+}
+
 const useRemoteFootprintService = (
   params: UseRemoteFootprintServiceParams,
-): ServiceResult<EstimationResult> => {
+): FootprintServiceResult => {
   const [data, setData] = useState(params.initial ?? [])
   const [loading, setLoading] = useState(true)
+  const [calculationConstants, setCalculationConstants] =
+    useState<CalculationConstants | null>(null)
 
   const { error, setError } = useAxiosErrorHandling(params.onApiError)
 
@@ -52,23 +63,31 @@ const useRemoteFootprintService = (
         let lastDataLength = 1
         let skip = 0
         while (lastDataLength > 0) {
-          const res = await axios.get(`${params.baseUrl}/footprint`, {
-            params: {
-              start: start,
-              end: end,
-              ignoreCache: params.ignoreCache,
-              groupBy: params.groupBy,
-              limit: params.limit,
-              skip,
+          const res = await axios.get<FootprintResponse>(
+            `${params.baseUrl}/footprint`,
+            {
+              params: {
+                start: start,
+                end: end,
+                ignoreCache: params.ignoreCache,
+                groupBy: params.groupBy,
+                limit: params.limit,
+                skip,
+              },
             },
-          })
+          )
+          const responseEstimates = res?.data?.estimates
+          // Update calculation constants from the first response
+          if (res?.data?.calculationConstants && !calculationConstants) {
+            setCalculationConstants(res.data.calculationConstants)
+          }
           lastDataLength = checkForLoopExit(
             lastDataLength,
-            res?.data,
+            responseEstimates,
             params,
             estimates,
           )
-          estimates = concatenateResults(estimates, res?.data)
+          estimates = concatenateResults(estimates, responseEstimates)
           skip += params.limit
         }
       } catch (e) {
@@ -97,7 +116,7 @@ const useRemoteFootprintService = (
     params.limit,
   ])
 
-  return { data, loading, error }
+  return { data, loading, error, calculationConstants }
 }
 
 const concatenateResults = (estimates, newEstimates) => {

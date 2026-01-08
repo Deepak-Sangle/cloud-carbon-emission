@@ -3,7 +3,17 @@
 
 components:
   schemas:
-    FootprintResponse:
+    FootprintApiResponse:
+      type: object
+      description: Complete response from the footprint API including estimates and calculation constants
+      properties:
+        estimates:
+          type: array
+          items:
+            $ref: '#/components/schemas/EstimationResult'
+        calculationConstants:
+          $ref: '#/components/schemas/CalculationConstants'
+    EstimationResult:
       type: object
       properties:
         timestamp:
@@ -15,14 +25,14 @@ components:
             properties:
               cloudProvider:
                 type: string
-                enum: [aws, gcp, azure]
+                enum: [aws, gcp, azure, ali]
               kilowattHours:
                 type: number
               co2e:
                 type: number
               cost:
                 type: number
-              usesAverageCPUConstant?:
+              usesAverageCPUConstant:
                 type: boolean
               accountId:
                 type: string
@@ -33,18 +43,94 @@ components:
               region:
                 type: string
               tags:
-                schema:
-                  type: array
-                  items:
-                    type: object
-                    additionalProperties:
-                      type: string
+                type: object
+                additionalProperties:
+                  type: string
         periodStartDate:
           type: string
         periodEndDate:
           type: string
         groupBy:
           type: string
+    CalculationConstants:
+      type: object
+      description: Constants used in the calculations (PUE, emissions factors, coefficients, etc.)
+      properties:
+        cloudProviderConstants:
+          type: object
+          properties:
+            aws:
+              $ref: '#/components/schemas/CloudProviderConstants'
+            gcp:
+              $ref: '#/components/schemas/CloudProviderConstants'
+            azure:
+              $ref: '#/components/schemas/CloudProviderConstants'
+            ali:
+              $ref: '#/components/schemas/CloudProviderConstants'
+        emissionsFactors:
+          type: object
+          description: Carbon intensity factors by region for each cloud provider (metric tons CO2e / kWh)
+          properties:
+            aws:
+              type: object
+              additionalProperties:
+                type: number
+            gcp:
+              type: object
+              additionalProperties:
+                type: number
+            azure:
+              type: object
+              additionalProperties:
+                type: number
+            ali:
+              type: object
+              additionalProperties:
+                type: number
+    CloudProviderConstants:
+      type: object
+      description: Constants used per cloud provider for carbon footprint calculations
+      properties:
+        pueAverage:
+          type: number
+          description: Power Usage Effectiveness - accounts for datacenter overhead (cooling, lighting, etc.)
+        pueByRegion:
+          type: object
+          additionalProperties:
+            type: number
+          description: Region-specific PUE values if available
+        ssdCoefficient:
+          type: number
+          description: Energy coefficient for SSD storage (watt hours / terabyte hour)
+        hddCoefficient:
+          type: number
+          description: Energy coefficient for HDD storage (watt hours / terabyte hour)
+        memoryCoefficient:
+          type: number
+          description: Energy coefficient for memory (kWh / Gb)
+        networkingCoefficient:
+          type: number
+          description: Energy coefficient for networking (kWh / Gb)
+        averageCpuUtilization:
+          type: number
+          description: Average CPU utilization assumption used in calculations
+        serverExpectedLifespan:
+          type: number
+          description: Server expected lifespan in hours (used for embodied emissions)
+        replicationFactors:
+          type: object
+          additionalProperties:
+            type: number
+          description: Replication factors by storage service type
+        minWattsAverage:
+          type: number
+          description: Average minimum watts per vCPU at idle
+        maxWattsAverage:
+          type: number
+          description: Average maximum watts per vCPU at full load
+        memoryAverage:
+          type: number
+          description: Average memory per physical chip (gigaBytes)
     EmissionResponse:
       type: object
       properties:
@@ -69,11 +155,11 @@ components:
           type: string
         recommendationType:
           type: string
-        recommendationDetail?:
+        recommendationDetail:
           type: string
-        resourceId?:
+        resourceId:
           type: string
-        instanceName?:
+        instanceName:
           type: string
         kilowattHourSavings:
           type: number
@@ -81,5 +167,5 @@ components:
           type: number
         co2eSavings:
           type: number
-        recommendationOptions?:
+        recommendationOptions:
           type: object

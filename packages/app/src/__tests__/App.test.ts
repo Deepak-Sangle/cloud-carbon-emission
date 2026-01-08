@@ -2,97 +2,99 @@
  * © 2021 Thoughtworks, Inc.
  */
 
-import moment from 'moment'
-import {
-  UsageData,
-  FootprintEstimate,
-  ICloudService,
-  Cost,
-} from '@cloud-carbon-footprint/core'
+import { AliAccount } from "@cloud-carbon-footprint/ali";
+import { AWSAccount } from "@cloud-carbon-footprint/aws";
+import { AzureAccount } from "@cloud-carbon-footprint/azure";
 import {
   AWS_DEFAULT_RECOMMENDATION_TARGET,
   AWS_RECOMMENDATIONS_TARGETS,
   configLoader,
   EmissionRatioResult,
   EstimationResult,
+  FootprintResponse,
   getPeriodEndDate,
   GroupBy,
   RecommendationResult,
-} from '@cloud-carbon-footprint/common'
-import { AWSAccount } from '@cloud-carbon-footprint/aws'
-import { GCPAccount } from '@cloud-carbon-footprint/gcp'
-import { AzureAccount } from '@cloud-carbon-footprint/azure'
-import { AliAccount } from '@cloud-carbon-footprint/ali'
-import App from '../App'
-import { EstimationRequest, RecommendationRequest } from '../CreateValidRequest'
-import cache from '../Cache'
+} from "@cloud-carbon-footprint/common";
+import {
+  Cost,
+  FootprintEstimate,
+  ICloudService,
+} from "@cloud-carbon-footprint/core";
+import { GCPAccount } from "@cloud-carbon-footprint/gcp";
+import moment from "moment";
+import App from "../App";
+import {
+  EstimationRequest,
+  RecommendationRequest,
+} from "../CreateValidRequest";
 
 const getDataForAWSRecommendations = jest.spyOn(
   AWSAccount.prototype,
-  'getDataForRecommendations',
-)
+  "getDataForRecommendations"
+);
 const getDataForGCPRecommendations = jest.spyOn(
   GCPAccount.prototype,
-  'getDataForRecommendations',
-)
+  "getDataForRecommendations"
+);
 const getDataForAzureRecommendations = jest.spyOn(
   AzureAccount.prototype,
-  'getDataFromAdvisorManagement',
-)
+  "getDataFromAdvisorManagement"
+);
 
 const initializeAzureAccount = jest.spyOn(
   AzureAccount.prototype,
-  'initializeAccount',
-)
+  "initializeAccount"
+);
 
-const getAWSServices = jest.spyOn(AWSAccount.prototype, 'getServices')
-const getGCPServices = jest.spyOn(GCPAccount.prototype, 'getServices')
+const getAWSServices = jest.spyOn(AWSAccount.prototype, "getServices");
+const getGCPServices = jest.spyOn(GCPAccount.prototype, "getServices");
 const defaultAWSConfigLoader = {
   INCLUDE_ESTIMATES: true,
-  accounts: [{ id: '12345678', name: 'test AWS account' }],
-  NAME: 'AWS',
-  CURRENT_SERVICES: [{ key: 'testService', name: 'service' }],
-  CURRENT_REGIONS: ['us-east-1', 'us-east-2'],
+  accounts: [{ id: "12345678", name: "test AWS account" }],
+  NAME: "AWS",
+  CURRENT_SERVICES: [{ key: "testService", name: "service" }],
+  CURRENT_REGIONS: ["us-east-1", "us-east-2"],
   authentication: {
-    mode: 'GCP',
+    mode: "GCP",
     options: {
-      targetRoleName: 'test-target',
-      proxyAccountId: 'test-account-id',
-      proxyRoleName: 'test-role-name',
+      targetRoleName: "test-target",
+      proxyAccountId: "test-account-id",
+      proxyRoleName: "test-role-name",
     },
   },
-}
+};
 
 const defaultGCPConfigLoader = {
   INCLUDE_ESTIMATES: true,
   projects: [
-    { id: '987654321', name: 'test GCP account' },
-    { id: '11223344', name: 'test GCP account 2' },
+    { id: "987654321", name: "test GCP account" },
+    { id: "11223344", name: "test GCP account 2" },
   ],
-  NAME: 'GCP',
-  CURRENT_SERVICES: [{ key: 'testService', name: 'service' }],
-  CURRENT_REGIONS: ['us-east1', 'us-west1', 'us-central1'],
-  CACHE_BUCKET_NAME: 'test-bucket-name',
-}
+  NAME: "GCP",
+  CURRENT_SERVICES: [{ key: "testService", name: "service" }],
+  CURRENT_REGIONS: ["us-east1", "us-west1", "us-central1"],
+  CACHE_BUCKET_NAME: "test-bucket-name",
+};
 
 const defaultAliConfigLoader = {
-  NAME: 'AliCloud',
+  NAME: "AliCloud",
   authentication: {
-    accessKeyId: 'test-access-key-id',
-    accessKeySecret: 'test-access-key-secret',
+    accessKeyId: "test-access-key-id",
+    accessKeySecret: "test-access-key-secret",
   },
-}
+};
 
-jest.mock('../Cache')
-jest.mock('@cloud-carbon-footprint/common', () => ({
-  ...(jest.requireActual('@cloud-carbon-footprint/common') as Record<
+jest.mock("../Cache");
+jest.mock("@cloud-carbon-footprint/common", () => ({
+  ...(jest.requireActual("@cloud-carbon-footprint/common") as Record<
     string,
     unknown
   >),
   Logger: jest.fn().mockImplementation(() => {
     return {
       info: jest.fn(),
-    }
+    };
   }),
   cache: jest.fn(),
   configLoader: jest.fn().mockImplementation(() => {
@@ -100,12 +102,12 @@ jest.mock('@cloud-carbon-footprint/common', () => ({
       AWS: defaultAWSConfigLoader,
       GCP: defaultGCPConfigLoader,
       ALI: defaultAliConfigLoader,
-    }
+    };
   }),
-}))
+}));
 
-jest.mock('@cloud-carbon-footprint/aws', () => ({
-  ...(jest.requireActual('@cloud-carbon-footprint/aws') as Record<
+jest.mock("@cloud-carbon-footprint/aws", () => ({
+  ...(jest.requireActual("@cloud-carbon-footprint/aws") as Record<
     string,
     unknown
   >),
@@ -113,10 +115,10 @@ jest.mock('@cloud-carbon-footprint/aws', () => ({
     awsRegion1: 1,
     awsRegion2: 2,
   },
-}))
+}));
 
-jest.mock('@cloud-carbon-footprint/gcp', () => ({
-  ...(jest.requireActual('@cloud-carbon-footprint/gcp') as Record<
+jest.mock("@cloud-carbon-footprint/gcp", () => ({
+  ...(jest.requireActual("@cloud-carbon-footprint/gcp") as Record<
     string,
     unknown
   >),
@@ -124,10 +126,10 @@ jest.mock('@cloud-carbon-footprint/gcp', () => ({
     gcpRegion1: 3,
     gcpRegion2: 4,
   }),
-}))
+}));
 
-jest.mock('@cloud-carbon-footprint/azure', () => ({
-  ...(jest.requireActual('@cloud-carbon-footprint/azure') as Record<
+jest.mock("@cloud-carbon-footprint/azure", () => ({
+  ...(jest.requireActual("@cloud-carbon-footprint/azure") as Record<
     string,
     unknown
   >),
@@ -135,10 +137,10 @@ jest.mock('@cloud-carbon-footprint/azure', () => ({
     azureRegion1: 5,
     azureRegion2: 6,
   },
-}))
+}));
 
-jest.mock('@cloud-carbon-footprint/ali', () => ({
-  ...(jest.requireActual('@cloud-carbon-footprint/ali') as Record<
+jest.mock("@cloud-carbon-footprint/ali", () => ({
+  ...(jest.requireActual("@cloud-carbon-footprint/ali") as Record<
     string,
     unknown
   >),
@@ -146,111 +148,111 @@ jest.mock('@cloud-carbon-footprint/ali', () => ({
     aliRegion1: 4,
     aliRegion2: 2,
   },
-}))
+}));
 
-const testRegions = ['us-east-1', 'us-east-2']
+const testRegions = ["us-east-1", "us-east-2"];
 
-describe('App', () => {
-  let app: App
-  const startDate = '2020-08-07'
-  const endDate = '2020-08-10'
-  const grouping = GroupBy.day
-  const region = 'us-east-1'
+describe("App", () => {
+  let app: App;
+  const startDate = "2020-08-07";
+  const endDate = "2020-08-10";
+  const grouping = GroupBy.day;
+  const region = "us-east-1";
   const request: EstimationRequest = {
     startDate: moment(startDate).toDate(),
-    endDate: moment(endDate).add(1, 'weeks').toDate(),
+    endDate: moment(endDate).add(1, "weeks").toDate(),
     ignoreCache: false,
     groupBy: grouping,
-  }
-  const testAwsAccountId = '12345678'
-  const testAwsAccountName = 'test AWS account'
-  const testGcpAccountIdOne = '987654321'
-  const testGcpAccountIdTwo = '11223344'
-  const testGcpAccountNameOne = 'test GCP account'
-  const testGcpAccountNameTwo = 'test GCP account 2'
-  const testAliAccountId = 'test-account-id'
-  const testAliAccountName = 'test-account-name'
+  };
+  const testAwsAccountId = "12345678";
+  const testAwsAccountName = "test AWS account";
+  const testGcpAccountIdOne = "987654321";
+  const testGcpAccountIdTwo = "11223344";
+  const testGcpAccountNameOne = "test GCP account";
+  const testGcpAccountNameTwo = "test GCP account 2";
+  const testAliAccountId = "test-account-id";
+  const testAliAccountName = "test-account-name";
 
   beforeEach(() => {
-    app = new App()
-  })
+    app = new App();
+  });
 
   afterEach(() => {
-    ;(configLoader as jest.Mock).mockReturnValue({
+    (configLoader as jest.Mock).mockReturnValue({
       ...configLoader(),
       AWS: defaultAWSConfigLoader,
       GCP: defaultGCPConfigLoader,
       ALI: defaultAliConfigLoader,
-    })
-  })
+    });
+  });
 
-  it('returns emissions ratios from the getEmissionsFactors function', () => {
+  it("returns emissions ratios from the getEmissionsFactors function", () => {
     // given
     const expectedResponse: EmissionRatioResult[] = [
       {
-        cloudProvider: 'AWS',
-        region: 'awsRegion1',
+        cloudProvider: "AWS",
+        region: "awsRegion1",
         mtPerKwHour: 1,
       },
       {
-        cloudProvider: 'AWS',
-        region: 'awsRegion2',
+        cloudProvider: "AWS",
+        region: "awsRegion2",
         mtPerKwHour: 2,
       },
       {
-        cloudProvider: 'GCP',
-        region: 'gcpRegion1',
+        cloudProvider: "GCP",
+        region: "gcpRegion1",
         mtPerKwHour: 3,
       },
       {
-        cloudProvider: 'GCP',
-        region: 'gcpRegion2',
+        cloudProvider: "GCP",
+        region: "gcpRegion2",
         mtPerKwHour: 4,
       },
       {
-        cloudProvider: 'AZURE',
-        region: 'azureRegion1',
+        cloudProvider: "AZURE",
+        region: "azureRegion1",
         mtPerKwHour: 5,
       },
       {
-        cloudProvider: 'AZURE',
-        region: 'azureRegion2',
+        cloudProvider: "AZURE",
+        region: "azureRegion2",
         mtPerKwHour: 6,
       },
       {
-        cloudProvider: 'ALI',
-        region: 'aliRegion1',
+        cloudProvider: "ALI",
+        region: "aliRegion1",
         mtPerKwHour: 4,
       },
       {
-        cloudProvider: 'ALI',
-        region: 'aliRegion2',
+        cloudProvider: "ALI",
+        region: "aliRegion2",
         mtPerKwHour: 2,
       },
-    ]
+    ];
     // when
-    const response = app.getEmissionsFactors()
+    const response = app.getEmissionsFactors();
 
     // then
-    expect(response).toEqual(expectedResponse)
-  })
+    expect(response).toEqual(expectedResponse);
+  });
 
-  describe('with configured regions', () => {
-    it('returns estimates for multiple regions', async () => {
+  describe("with configured regions", () => {
+    it("returns estimates for multiple regions", async () => {
       const mockGetEstimates: jest.Mock<Promise<FootprintEstimate[]>> =
-        jest.fn()
+        jest.fn();
       setUpServices(
         getAWSServices as jest.Mock,
         [mockGetEstimates],
-        ['serviceOne'],
-        [jest.fn().mockResolvedValue([])],
-      )
+        ["serviceOne"],
+        [jest.fn().mockResolvedValue([])]
+      );
       setUpServices(
         getGCPServices as jest.Mock,
         [jest.fn().mockResolvedValue([])],
         [],
-        [jest.fn().mockResolvedValue([])],
-      )
+        [jest.fn().mockResolvedValue([])]
+      );
 
       const expectedStorageEstimate: FootprintEstimate[] = [
         {
@@ -258,29 +260,29 @@ describe('App', () => {
           kilowattHours: 3,
           co2e: 6,
         },
-      ]
-      mockGetEstimates.mockResolvedValue(expectedStorageEstimate)
+      ];
+      mockGetEstimates.mockResolvedValue(expectedStorageEstimate);
 
-      const start = moment(startDate).toDate()
-      const end = moment(startDate).add(1, 'day').toDate()
+      const start = moment(startDate).toDate();
+      const end = moment(startDate).add(1, "day").toDate();
       const request: EstimationRequest = {
         startDate: start,
         endDate: end,
         ignoreCache: false,
         groupBy: grouping,
-      }
+      };
 
-      const result = await app.getCostAndEstimates(request)
+      const result = await app.getCostAndEstimates(request);
 
       const expectedEstimationResults = [
         {
           timestamp: new Date(startDate),
           serviceEstimates: [
             {
-              cloudProvider: 'AWS',
+              cloudProvider: "AWS",
               accountId: testAwsAccountId,
               accountName: testAwsAccountName,
-              serviceName: 'serviceOne',
+              serviceName: "serviceOne",
               kilowattHours: 3,
               co2e: 6,
               cost: 0,
@@ -288,10 +290,10 @@ describe('App', () => {
               usesAverageCPUConstant: false,
             },
             {
-              cloudProvider: 'AWS',
+              cloudProvider: "AWS",
               accountId: testAwsAccountId,
               accountName: testAwsAccountName,
-              serviceName: 'serviceOne',
+              serviceName: "serviceOne",
               kilowattHours: 3,
               co2e: 6,
               cost: 0,
@@ -299,52 +301,53 @@ describe('App', () => {
               usesAverageCPUConstant: false,
             },
           ],
-          groupBy: 'day',
-          periodEndDate: new Date('2020-08-07T23:59:59.000Z'),
-          periodStartDate: new Date('2020-08-07T00:00:00.000Z'),
+          groupBy: "day",
+          periodEndDate: new Date("2020-08-07T23:59:59.000Z"),
+          periodStartDate: new Date("2020-08-07T00:00:00.000Z"),
         },
-      ]
+      ];
 
       expect(mockGetEstimates).toHaveBeenNthCalledWith(
         1,
         new Date(start),
         new Date(end),
-        'us-east-1',
+        "us-east-1",
         expect.anything(),
-        expect.anything(),
-      )
+        expect.anything()
+      );
       expect(mockGetEstimates).toHaveBeenNthCalledWith(
         2,
         new Date(start),
         new Date(end),
-        'us-east-2',
+        "us-east-2",
         expect.anything(),
-        expect.anything(),
-      )
+        expect.anything()
+      );
 
-      expect(result).toEqual(expectedEstimationResults)
-    })
+      expect(result.estimates).toEqual(expectedEstimationResults);
+      expect(result.calculationConstants).toBeDefined();
+    });
 
-    it('returns estimates for multiple services in multiple regions', async () => {
+    it("returns estimates for multiple services in multiple regions", async () => {
       const mockGetEstimates: jest.Mock<Promise<FootprintEstimate[]>> =
-        jest.fn()
+        jest.fn();
       const mockGetEstimates2: jest.Mock<Promise<FootprintEstimate[]>> =
-        jest.fn()
-      const mockGetCostPerService1: jest.Mock<Promise<Cost[]>> = jest.fn()
-      const mockGetCostPerService2: jest.Mock<Promise<Cost[]>> = jest.fn()
+        jest.fn();
+      const mockGetCostPerService1: jest.Mock<Promise<Cost[]>> = jest.fn();
+      const mockGetCostPerService2: jest.Mock<Promise<Cost[]>> = jest.fn();
 
       setUpServices(
         getAWSServices as jest.Mock,
         [mockGetEstimates, mockGetEstimates2],
-        ['serviceOne', 'serviceTwo'],
-        [mockGetCostPerService1, mockGetCostPerService2],
-      )
+        ["serviceOne", "serviceTwo"],
+        [mockGetCostPerService1, mockGetCostPerService2]
+      );
       setUpServices(
         getGCPServices as jest.Mock,
         [jest.fn().mockResolvedValue([])],
         [],
-        [jest.fn().mockResolvedValue([])],
-      )
+        [jest.fn().mockResolvedValue([])]
+      );
 
       const expectedStorageEstimate: FootprintEstimate[] = [
         {
@@ -352,8 +355,8 @@ describe('App', () => {
           kilowattHours: 3,
           co2e: 6,
         },
-      ]
-      mockGetEstimates.mockResolvedValue(expectedStorageEstimate)
+      ];
+      mockGetEstimates.mockResolvedValue(expectedStorageEstimate);
 
       const expectedStorageEstimate2: FootprintEstimate[] = [
         {
@@ -361,39 +364,39 @@ describe('App', () => {
           kilowattHours: 4,
           co2e: 8,
         },
-      ]
-      mockGetEstimates2.mockResolvedValue(expectedStorageEstimate2)
+      ];
+      mockGetEstimates2.mockResolvedValue(expectedStorageEstimate2);
 
       const expectedCosts: Cost[] = [
         {
           timestamp: new Date(startDate),
-          currency: '$',
+          currency: "$",
           amount: 3,
         },
-      ]
-      mockGetCostPerService1.mockResolvedValue(expectedCosts)
-      mockGetCostPerService2.mockResolvedValue(expectedCosts)
+      ];
+      mockGetCostPerService1.mockResolvedValue(expectedCosts);
+      mockGetCostPerService2.mockResolvedValue(expectedCosts);
 
-      const start = moment(startDate).toDate()
-      const end = moment(startDate).add(1, 'day').toDate()
+      const start = moment(startDate).toDate();
+      const end = moment(startDate).add(1, "day").toDate();
       const request: EstimationRequest = {
         startDate: start,
         endDate: end,
         ignoreCache: false,
         groupBy: grouping,
-      }
+      };
 
-      const result = await app.getCostAndEstimates(request)
+      const result = await app.getCostAndEstimates(request);
 
       const expectedEstimationResults: EstimationResult[] = [
         {
           timestamp: new Date(startDate),
           serviceEstimates: [
             {
-              cloudProvider: 'AWS',
+              cloudProvider: "AWS",
               accountId: testAwsAccountId,
               accountName: testAwsAccountName,
-              serviceName: 'serviceOne',
+              serviceName: "serviceOne",
               kilowattHours: 3,
               co2e: 6,
               cost: 3,
@@ -401,10 +404,10 @@ describe('App', () => {
               usesAverageCPUConstant: false,
             },
             {
-              cloudProvider: 'AWS',
+              cloudProvider: "AWS",
               accountId: testAwsAccountId,
               accountName: testAwsAccountName,
-              serviceName: 'serviceTwo',
+              serviceName: "serviceTwo",
               kilowattHours: 4,
               co2e: 8,
               cost: 3,
@@ -412,10 +415,10 @@ describe('App', () => {
               usesAverageCPUConstant: false,
             },
             {
-              cloudProvider: 'AWS',
+              cloudProvider: "AWS",
               accountId: testAwsAccountId,
               accountName: testAwsAccountName,
-              serviceName: 'serviceOne',
+              serviceName: "serviceOne",
               kilowattHours: 3,
               co2e: 6,
               cost: 3,
@@ -423,10 +426,10 @@ describe('App', () => {
               usesAverageCPUConstant: false,
             },
             {
-              cloudProvider: 'AWS',
+              cloudProvider: "AWS",
               accountId: testAwsAccountId,
               accountName: testAwsAccountName,
-              serviceName: 'serviceTwo',
+              serviceName: "serviceTwo",
               kilowattHours: 4,
               co2e: 8,
               cost: 3,
@@ -435,49 +438,50 @@ describe('App', () => {
             },
           ],
           groupBy: grouping,
-          periodEndDate: new Date('2020-08-07T23:59:59.000Z'),
-          periodStartDate: new Date('2020-08-07T00:00:00.000Z'),
+          periodEndDate: new Date("2020-08-07T23:59:59.000Z"),
+          periodStartDate: new Date("2020-08-07T00:00:00.000Z"),
         },
-      ]
+      ];
 
       expect(mockGetEstimates).toHaveBeenNthCalledWith(
         1,
         new Date(start),
         new Date(end),
-        'us-east-1',
+        "us-east-1",
         expect.anything(),
-        expect.anything(),
-      )
+        expect.anything()
+      );
       expect(mockGetEstimates).toHaveBeenNthCalledWith(
         2,
         new Date(start),
         new Date(end),
-        'us-east-2',
+        "us-east-2",
         expect.anything(),
-        expect.anything(),
-      )
+        expect.anything()
+      );
 
-      expect(result).toEqual(expectedEstimationResults)
-    })
+      expect(result.estimates).toEqual(expectedEstimationResults);
+      expect(result.calculationConstants).toBeDefined();
+    });
 
-    it('returns estimates for multiple regions and accounts in multiple cloud providers', async () => {
+    it("returns estimates for multiple regions and accounts in multiple cloud providers", async () => {
       const mockGetAWSEstimates: jest.Mock<Promise<FootprintEstimate[]>> =
-        jest.fn()
+        jest.fn();
       setUpServices(
         getAWSServices as jest.Mock,
         [mockGetAWSEstimates],
-        ['serviceOne'],
-        [jest.fn().mockResolvedValue([])],
-      )
+        ["serviceOne"],
+        [jest.fn().mockResolvedValue([])]
+      );
 
       const mockGetGCPEstimates: jest.Mock<Promise<FootprintEstimate[]>> =
-        jest.fn()
+        jest.fn();
       setUpServices(
         getGCPServices as jest.Mock,
         [mockGetGCPEstimates],
-        ['serviceTwo'],
-        [jest.fn().mockResolvedValue([])],
-      )
+        ["serviceTwo"],
+        [jest.fn().mockResolvedValue([])]
+      );
 
       const expectedStorageEstimate: FootprintEstimate[] = [
         {
@@ -485,8 +489,8 @@ describe('App', () => {
           kilowattHours: 3,
           co2e: 6,
         },
-      ]
-      mockGetAWSEstimates.mockResolvedValue(expectedStorageEstimate)
+      ];
+      mockGetAWSEstimates.mockResolvedValue(expectedStorageEstimate);
 
       const expectedStorageEstimate2: FootprintEstimate[] = [
         {
@@ -494,259 +498,261 @@ describe('App', () => {
           kilowattHours: 4,
           co2e: 8,
         },
-      ]
-      mockGetGCPEstimates.mockResolvedValue(expectedStorageEstimate2)
+      ];
+      mockGetGCPEstimates.mockResolvedValue(expectedStorageEstimate2);
 
-      const start = moment(startDate).toDate()
-      const end = moment(startDate).add(1, 'day').toDate()
+      const start = moment(startDate).toDate();
+      const end = moment(startDate).add(1, "day").toDate();
       const request: EstimationRequest = {
         startDate: start,
         endDate: end,
         ignoreCache: false,
         groupBy: grouping,
-      }
+      };
 
-      const result = await app.getCostAndEstimates(request)
+      const result = await app.getCostAndEstimates(request);
 
       const expectedEstimationResults: EstimationResult[] = [
         {
           timestamp: new Date(startDate),
           serviceEstimates: [
             {
-              cloudProvider: 'AWS',
+              cloudProvider: "AWS",
               accountId: testAwsAccountId,
               accountName: testAwsAccountName,
-              serviceName: 'serviceOne',
+              serviceName: "serviceOne",
               kilowattHours: 3,
               co2e: 6,
               cost: 0,
-              region: 'us-east-1',
+              region: "us-east-1",
               usesAverageCPUConstant: false,
             },
             {
-              cloudProvider: 'AWS',
+              cloudProvider: "AWS",
               accountId: testAwsAccountId,
               accountName: testAwsAccountName,
-              serviceName: 'serviceOne',
+              serviceName: "serviceOne",
               kilowattHours: 3,
               co2e: 6,
               cost: 0,
-              region: 'us-east-2',
+              region: "us-east-2",
               usesAverageCPUConstant: false,
             },
             {
-              cloudProvider: 'GCP',
+              cloudProvider: "GCP",
               accountId: testGcpAccountIdOne,
               accountName: testGcpAccountNameOne,
-              serviceName: 'serviceTwo',
+              serviceName: "serviceTwo",
               kilowattHours: 4,
               co2e: 8,
               cost: 0,
-              region: 'us-east1',
+              region: "us-east1",
               usesAverageCPUConstant: false,
             },
             {
-              cloudProvider: 'GCP',
+              cloudProvider: "GCP",
               accountId: testGcpAccountIdOne,
               accountName: testGcpAccountNameOne,
-              serviceName: 'serviceTwo',
+              serviceName: "serviceTwo",
               kilowattHours: 4,
               co2e: 8,
               cost: 0,
-              region: 'us-west1',
+              region: "us-west1",
               usesAverageCPUConstant: false,
             },
             {
-              cloudProvider: 'GCP',
+              cloudProvider: "GCP",
               accountId: testGcpAccountIdOne,
               accountName: testGcpAccountNameOne,
-              serviceName: 'serviceTwo',
+              serviceName: "serviceTwo",
               kilowattHours: 4,
               co2e: 8,
               cost: 0,
-              region: 'us-central1',
+              region: "us-central1",
               usesAverageCPUConstant: false,
             },
             {
               accountId: testGcpAccountIdTwo,
               accountName: testGcpAccountNameTwo,
-              cloudProvider: 'GCP',
+              cloudProvider: "GCP",
               co2e: 8,
               cost: 0,
-              region: 'us-east1',
-              serviceName: 'serviceTwo',
-              usesAverageCPUConstant: false,
-              kilowattHours: 4,
-            },
-            {
-              accountId: testGcpAccountIdTwo,
-              accountName: testGcpAccountNameTwo,
-              cloudProvider: 'GCP',
-              co2e: 8,
-              cost: 0,
-              region: 'us-west1',
-              serviceName: 'serviceTwo',
+              region: "us-east1",
+              serviceName: "serviceTwo",
               usesAverageCPUConstant: false,
               kilowattHours: 4,
             },
             {
               accountId: testGcpAccountIdTwo,
               accountName: testGcpAccountNameTwo,
-              cloudProvider: 'GCP',
+              cloudProvider: "GCP",
               co2e: 8,
               cost: 0,
-              region: 'us-central1',
-              serviceName: 'serviceTwo',
+              region: "us-west1",
+              serviceName: "serviceTwo",
+              usesAverageCPUConstant: false,
+              kilowattHours: 4,
+            },
+            {
+              accountId: testGcpAccountIdTwo,
+              accountName: testGcpAccountNameTwo,
+              cloudProvider: "GCP",
+              co2e: 8,
+              cost: 0,
+              region: "us-central1",
+              serviceName: "serviceTwo",
               usesAverageCPUConstant: false,
               kilowattHours: 4,
             },
           ],
           groupBy: grouping,
-          periodEndDate: new Date('2020-08-07T23:59:59.000Z'),
-          periodStartDate: new Date('2020-08-07T00:00:00.000Z'),
+          periodEndDate: new Date("2020-08-07T23:59:59.000Z"),
+          periodStartDate: new Date("2020-08-07T00:00:00.000Z"),
         },
-      ]
+      ];
 
-      expect(mockGetAWSEstimates).toHaveBeenCalledTimes(2)
+      expect(mockGetAWSEstimates).toHaveBeenCalledTimes(2);
       expect(mockGetAWSEstimates).toHaveBeenNthCalledWith(
         1,
         new Date(start),
         new Date(end),
-        'us-east-1',
+        "us-east-1",
         expect.anything(),
-        expect.anything(),
-      )
+        expect.anything()
+      );
       expect(mockGetAWSEstimates).toHaveBeenNthCalledWith(
         2,
         new Date(start),
         new Date(end),
-        'us-east-2',
+        "us-east-2",
         expect.anything(),
-        expect.anything(),
-      )
+        expect.anything()
+      );
 
-      expect(mockGetGCPEstimates).toHaveBeenCalledTimes(6)
+      expect(mockGetGCPEstimates).toHaveBeenCalledTimes(6);
       expect(mockGetGCPEstimates).toHaveBeenNthCalledWith(
         1,
         new Date(start),
         new Date(end),
-        'us-east1',
+        "us-east1",
         expect.anything(),
-        expect.anything(),
-      )
+        expect.anything()
+      );
       expect(mockGetGCPEstimates).toHaveBeenNthCalledWith(
         2,
         new Date(start),
         new Date(end),
-        'us-west1',
+        "us-west1",
         expect.anything(),
-        expect.anything(),
-      )
+        expect.anything()
+      );
       expect(mockGetGCPEstimates).toHaveBeenNthCalledWith(
         3,
         new Date(start),
         new Date(end),
-        'us-central1',
+        "us-central1",
         expect.anything(),
-        expect.anything(),
-      )
+        expect.anything()
+      );
       expect(mockGetGCPEstimates).toHaveBeenNthCalledWith(
         4,
         new Date(start),
         new Date(end),
-        'us-east1',
+        "us-east1",
         expect.anything(),
-        expect.anything(),
-      )
+        expect.anything()
+      );
       expect(mockGetGCPEstimates).toHaveBeenNthCalledWith(
         5,
         new Date(start),
         new Date(end),
-        'us-west1',
+        "us-west1",
         expect.anything(),
-        expect.anything(),
-      )
+        expect.anything()
+      );
       expect(mockGetGCPEstimates).toHaveBeenNthCalledWith(
         6,
         new Date(start),
         new Date(end),
-        'us-central1',
+        "us-central1",
         expect.anything(),
-        expect.anything(),
-      )
+        expect.anything()
+      );
 
-      expect(result).toEqual(expectedEstimationResults)
-    })
-  })
+      expect(result.estimates).toEqual(expectedEstimationResults);
+      expect(result.calculationConstants).toBeDefined();
+    });
+  });
 
-  describe('getCostAndEstimates', () => {
+  describe("getCostAndEstimates", () => {
     beforeEach(() => {
-      ;(configLoader as jest.Mock).mockReturnValue({
+      (configLoader as jest.Mock).mockReturnValue({
         ...configLoader(),
         AWS: {
           ...defaultAWSConfigLoader,
-          CURRENT_REGIONS: ['us-east-1'],
+          CURRENT_REGIONS: ["us-east-1"],
         },
         GCP: {
           ...defaultGCPConfigLoader,
           INCLUDE_ESTIMATES: false,
-          CURRENT_REGIONS: ['us-east1'],
+          CURRENT_REGIONS: ["us-east1"],
         },
         ALI: {
           ...defaultAliConfigLoader,
           INCLUDE_ESTIMATES: false,
         },
-      })
-    })
+      });
+    });
 
-    it('returns ebs estimates for a week', async () => {
+    it("returns ebs estimates for a week", async () => {
       const mockGetCostAndEstimatesPerService: jest.Mock<
         Promise<FootprintEstimate[]>
-      > = jest.fn()
-      const mockGetCostPerService: jest.Mock<Promise<Cost[]>> = jest.fn()
+      > = jest.fn();
+      const mockGetCostPerService: jest.Mock<Promise<Cost[]>> = jest.fn();
       setUpServices(
         getAWSServices as jest.Mock,
         [mockGetCostAndEstimatesPerService],
-        ['ebs'],
-        [mockGetCostPerService],
-      )
+        ["ebs"],
+        [mockGetCostPerService]
+      );
 
       const expectedUsageEstimate: FootprintEstimate[] = [...Array(7)].map(
         (v, i) => {
           return {
-            timestamp: moment.utc(startDate).add(i, 'days').toDate(),
+            timestamp: moment.utc(startDate).add(i, "days").toDate(),
             kilowattHours: 1.0944,
             co2e: 0.0007737845760000001,
-          }
-        },
-      )
+          };
+        }
+      );
       mockGetCostAndEstimatesPerService.mockResolvedValueOnce(
-        expectedUsageEstimate,
-      )
+        expectedUsageEstimate
+      );
 
       const costs: Cost[] = [...Array(7)].map((v, i) => {
         return {
-          timestamp: moment.utc(startDate).add(i, 'days').toDate(),
-          currency: '$',
+          timestamp: moment.utc(startDate).add(i, "days").toDate(),
+          currency: "$",
           amount: 5,
-        }
-      })
-      mockGetCostPerService.mockResolvedValueOnce(costs)
+        };
+      });
+      mockGetCostPerService.mockResolvedValueOnce(costs);
 
-      const estimationResult: EstimationResult[] =
-        await app.getCostAndEstimates(request)
+      const estimationResult: FootprintResponse = await app.getCostAndEstimates(
+        request
+      );
 
       const expectedEstimationResults: EstimationResult[] = [...Array(7)].map(
         (v, i) => {
-          const timestamp = moment.utc(startDate).add(i, 'days').toDate()
+          const timestamp = moment.utc(startDate).add(i, "days").toDate();
           return {
             timestamp,
             serviceEstimates: [
               {
-                cloudProvider: 'AWS',
+                cloudProvider: "AWS",
                 accountId: testAwsAccountId,
                 accountName: testAwsAccountName,
-                serviceName: 'ebs',
+                serviceName: "ebs",
                 kilowattHours: 1.0944,
                 co2e: 0.0007737845760000001,
                 cost: 5,
@@ -757,26 +763,26 @@ describe('App', () => {
             periodStartDate: timestamp,
             periodEndDate: getPeriodEndDate(timestamp, grouping),
             groupBy: grouping,
-          }
-        },
-      )
+          };
+        }
+      );
 
-      expect(estimationResult).toEqual(expectedEstimationResults)
-    })
+      expect(estimationResult).toEqual(expectedEstimationResults);
+    });
 
-    it('returns estimates for 2 services', async () => {
+    it("returns estimates for 2 services", async () => {
       const mockGetEstimates1: jest.Mock<Promise<FootprintEstimate[]>> =
-        jest.fn()
+        jest.fn();
       const mockGetEstimates2: jest.Mock<Promise<FootprintEstimate[]>> =
-        jest.fn()
-      const mockGetCostPerService1: jest.Mock<Promise<Cost[]>> = jest.fn()
-      const mockGetCostPerService2: jest.Mock<Promise<Cost[]>> = jest.fn()
+        jest.fn();
+      const mockGetCostPerService1: jest.Mock<Promise<Cost[]>> = jest.fn();
+      const mockGetCostPerService2: jest.Mock<Promise<Cost[]>> = jest.fn();
       setUpServices(
         getAWSServices as jest.Mock,
         [mockGetEstimates1, mockGetEstimates2],
-        ['serviceOne', 'serviceTwo'],
-        [mockGetCostPerService1, mockGetCostPerService2],
-      )
+        ["serviceOne", "serviceTwo"],
+        [mockGetCostPerService1, mockGetCostPerService2]
+      );
 
       const expectedStorageEstimate: FootprintEstimate[] = [
         {
@@ -784,8 +790,8 @@ describe('App', () => {
           kilowattHours: 2,
           co2e: 2,
         },
-      ]
-      mockGetEstimates1.mockResolvedValueOnce(expectedStorageEstimate)
+      ];
+      mockGetEstimates1.mockResolvedValueOnce(expectedStorageEstimate);
 
       const expectedStorageEstimate2: FootprintEstimate[] = [
         {
@@ -793,39 +799,40 @@ describe('App', () => {
           kilowattHours: 1,
           co2e: 1,
         },
-      ]
-      mockGetEstimates2.mockResolvedValueOnce(expectedStorageEstimate2)
+      ];
+      mockGetEstimates2.mockResolvedValueOnce(expectedStorageEstimate2);
 
       const expectedCosts: Cost[] = [
         {
           timestamp: new Date(startDate),
-          currency: '$',
+          currency: "$",
           amount: 3,
         },
-      ]
-      mockGetCostPerService1.mockResolvedValueOnce(expectedCosts)
+      ];
+      mockGetCostPerService1.mockResolvedValueOnce(expectedCosts);
 
       const expectedCosts2: Cost[] = [
         {
           timestamp: new Date(startDate),
-          currency: '$$',
+          currency: "$$",
           amount: 4,
         },
-      ]
-      mockGetCostPerService2.mockResolvedValueOnce(expectedCosts2)
+      ];
+      mockGetCostPerService2.mockResolvedValueOnce(expectedCosts2);
 
-      const estimationResult: EstimationResult[] =
-        await app.getCostAndEstimates(request)
+      const estimationResult: FootprintResponse = await app.getCostAndEstimates(
+        request
+      );
 
       const expectedEstimationResults = [
         {
           timestamp: new Date(startDate),
           serviceEstimates: [
             {
-              cloudProvider: 'AWS',
+              cloudProvider: "AWS",
               accountId: testAwsAccountId,
               accountName: testAwsAccountName,
-              serviceName: 'serviceOne',
+              serviceName: "serviceOne",
               kilowattHours: 2,
               co2e: 2,
               cost: 3,
@@ -833,10 +840,10 @@ describe('App', () => {
               usesAverageCPUConstant: false,
             },
             {
-              cloudProvider: 'AWS',
+              cloudProvider: "AWS",
               accountId: testAwsAccountId,
               accountName: testAwsAccountName,
-              serviceName: 'serviceTwo',
+              serviceName: "serviceTwo",
               kilowattHours: 1,
               co2e: 1,
               cost: 4,
@@ -844,55 +851,56 @@ describe('App', () => {
               usesAverageCPUConstant: false,
             },
           ],
-          periodStartDate: new Date('2020-08-07T00:00:00.000Z'),
-          periodEndDate: new Date('2020-08-07T23:59:59.000Z'),
+          periodStartDate: new Date("2020-08-07T00:00:00.000Z"),
+          periodEndDate: new Date("2020-08-07T23:59:59.000Z"),
           groupBy: grouping,
         },
-      ]
+      ];
 
-      expect(estimationResult).toEqual(expectedEstimationResults)
-    })
+      expect(estimationResult).toEqual(expectedEstimationResults);
+    });
 
-    it('aggregates per day', async () => {
+    it("aggregates per day", async () => {
       const mockGetEstimates: jest.Mock<Promise<FootprintEstimate[]>> =
-        jest.fn()
+        jest.fn();
       setUpServices(
         getAWSServices as jest.Mock,
         [mockGetEstimates],
-        ['serviceOne'],
-        [jest.fn().mockResolvedValue([])],
-      )
+        ["serviceOne"],
+        [jest.fn().mockResolvedValue([])]
+      );
       const expectedStorageEstimate: FootprintEstimate[] = [
         {
-          timestamp: new Date(startDate + 'T01:00:00Z'),
+          timestamp: new Date(startDate + "T01:00:00Z"),
           kilowattHours: 1,
           co2e: 2,
         },
         {
-          timestamp: new Date(startDate + 'T12:59:59Z'),
+          timestamp: new Date(startDate + "T12:59:59Z"),
           kilowattHours: 1,
           co2e: 2,
         },
         {
-          timestamp: new Date(startDate + 'T23:59:59Z'),
+          timestamp: new Date(startDate + "T23:59:59Z"),
           kilowattHours: 1,
           co2e: 2,
         },
-      ]
-      mockGetEstimates.mockResolvedValueOnce(expectedStorageEstimate)
+      ];
+      mockGetEstimates.mockResolvedValueOnce(expectedStorageEstimate);
 
-      const estimationResult: EstimationResult[] =
-        await app.getCostAndEstimates(request)
+      const estimationResult: FootprintResponse = await app.getCostAndEstimates(
+        request
+      );
 
       const expectedEstimationResults = [
         {
           timestamp: new Date(startDate),
           serviceEstimates: [
             {
-              cloudProvider: 'AWS',
+              cloudProvider: "AWS",
               accountId: testAwsAccountId,
               accountName: testAwsAccountName,
-              serviceName: 'serviceOne',
+              serviceName: "serviceOne",
               kilowattHours: 3,
               co2e: 6,
               cost: 0,
@@ -900,71 +908,56 @@ describe('App', () => {
               usesAverageCPUConstant: false,
             },
           ],
-          periodStartDate: new Date('2020-08-07T00:00:00.000Z'),
-          periodEndDate: new Date('2020-08-07T23:59:59.000Z'),
+          periodStartDate: new Date("2020-08-07T00:00:00.000Z"),
+          periodEndDate: new Date("2020-08-07T23:59:59.000Z"),
           groupBy: grouping,
         },
-      ]
-      expect(estimationResult).toEqual(expectedEstimationResults)
-    })
+      ];
+      expect(estimationResult).toEqual(expectedEstimationResults);
+    });
 
-    it('uses cache decorator', async () => {
+    it("returns ebs estimates ordered by timestamp ascending", async () => {
       const mockGetCostAndEstimatesPerService: jest.Mock<
         Promise<FootprintEstimate[]>
-      > = jest.fn()
+      > = jest.fn();
       setUpServices(
         getAWSServices as jest.Mock,
         [mockGetCostAndEstimatesPerService],
-        ['ebs'],
-        [jest.fn().mockResolvedValue([])],
-      )
-      mockGetCostAndEstimatesPerService.mockResolvedValueOnce([])
-
-      await app.getCostAndEstimates(request)
-      expect(cache).toHaveBeenCalled()
-    })
-
-    it('returns ebs estimates ordered by timestamp ascending', async () => {
-      const mockGetCostAndEstimatesPerService: jest.Mock<
-        Promise<FootprintEstimate[]>
-      > = jest.fn()
-      setUpServices(
-        getAWSServices as jest.Mock,
-        [mockGetCostAndEstimatesPerService],
-        ['ebs'],
-        [jest.fn().mockResolvedValue([])],
-      )
+        ["ebs"],
+        [jest.fn().mockResolvedValue([])]
+      );
 
       const expectedUsageEstimate: FootprintEstimate[] = [...Array(7)].map(
         (v, i) => {
           return {
-            timestamp: moment.utc(startDate).subtract(i, 'days').toDate(),
+            timestamp: moment.utc(startDate).subtract(i, "days").toDate(),
             kilowattHours: 1.0944,
             co2e: 0.0007737845760000001,
-          }
-        },
-      )
+          };
+        }
+      );
       mockGetCostAndEstimatesPerService.mockResolvedValueOnce(
-        expectedUsageEstimate,
-      )
+        expectedUsageEstimate
+      );
 
-      const estimationResult: EstimationResult[] =
-        await app.getCostAndEstimates(request)
+      const estimationResult: FootprintResponse = await app.getCostAndEstimates(
+        request
+      );
 
       const expectedEstimationResults: EstimationResult[] = [...Array(7)].map(
         (v, i) => {
           const timestamp = moment
             .utc(startDate)
-            .subtract(6 - i, 'days')
-            .toDate()
+            .subtract(6 - i, "days")
+            .toDate();
           return {
             timestamp,
             serviceEstimates: [
               {
-                cloudProvider: 'AWS',
+                cloudProvider: "AWS",
                 accountId: testAwsAccountId,
                 accountName: testAwsAccountName,
-                serviceName: 'ebs',
+                serviceName: "ebs",
                 kilowattHours: 1.0944,
                 co2e: 0.0007737845760000001,
                 cost: 0,
@@ -975,17 +968,17 @@ describe('App', () => {
             periodStartDate: timestamp,
             periodEndDate: getPeriodEndDate(timestamp, grouping),
             groupBy: grouping,
-          }
-        },
-      )
+          };
+        }
+      );
 
-      expect(estimationResult).toEqual(expectedEstimationResults)
-    })
+      expect(estimationResult).toEqual(expectedEstimationResults);
+    });
 
     // TODO: Refactor tests to be separated by cloud providers + usage approaches
-    describe('AliCloud', () => {
-      it('gets cost and estimates using billing data', async () => {
-        ;(configLoader as jest.Mock).mockReturnValue({
+    describe("AliCloud", () => {
+      it("gets cost and estimates using billing data", async () => {
+        (configLoader as jest.Mock).mockReturnValue({
           ...configLoader(),
           AWS: {
             INCLUDE_ESTIMATES: false,
@@ -997,7 +990,7 @@ describe('App', () => {
             ...defaultAliConfigLoader,
             INCLUDE_ESTIMATES: true,
           },
-        })
+        });
 
         const mockEstimationResults: EstimationResult[] = [
           {
@@ -1006,194 +999,195 @@ describe('App', () => {
               {
                 accountId: testAliAccountId,
                 accountName: testAliAccountName,
-                cloudProvider: 'AliCloud',
+                cloudProvider: "AliCloud",
                 co2e: 0,
                 cost: 0,
-                region: 'CN_HANGZHOU',
-                serviceName: 'ECS',
+                region: "CN_HANGZHOU",
+                serviceName: "ECS",
                 usesAverageCPUConstant: false,
                 kilowattHours: 0,
               },
             ],
             groupBy: grouping,
-            periodEndDate: new Date('2020-08-07T23:59:59.000Z'),
-            periodStartDate: new Date('2020-08-07T00:00:00.000Z'),
+            periodEndDate: new Date("2020-08-07T23:59:59.000Z"),
+            periodStartDate: new Date("2020-08-07T00:00:00.000Z"),
           },
-        ]
+        ];
 
         const mockGetDataFromCostAndUsageReports = jest
-          .spyOn(AliAccount.prototype, 'getDataFromCostAndUsageReports')
-          .mockResolvedValue(mockEstimationResults)
+          .spyOn(AliAccount.prototype, "getDataFromCostAndUsageReports")
+          .mockResolvedValue(mockEstimationResults);
 
-        const start = moment(startDate).toDate()
-        const end = moment(startDate).add(1, 'day').toDate()
+        const start = moment(startDate).toDate();
+        const end = moment(startDate).add(1, "day").toDate();
         const request: EstimationRequest = {
           startDate: start,
           endDate: end,
           ignoreCache: false,
           groupBy: grouping,
-        }
+        };
 
-        const result = await app.getCostAndEstimates(request)
+        const result = await app.getCostAndEstimates(request);
 
         expect(mockGetDataFromCostAndUsageReports).toHaveBeenCalledWith(
           request.startDate,
           request.endDate,
-          request.groupBy,
-        )
+          request.groupBy
+        );
 
-        expect(result).toEqual(mockEstimationResults)
-      })
-    })
-  })
+        expect(result.estimates).toEqual(mockEstimationResults);
+        expect(result.calculationConstants).toBeDefined();
+      });
+    });
+  });
 
-  describe('recommendations', () => {
+  describe("recommendations", () => {
     const defaultRequest: RecommendationRequest = {
       awsRecommendationTarget: AWS_DEFAULT_RECOMMENDATION_TARGET,
-    }
+    };
 
-    it('returns recommendations for aws', async () => {
+    it("returns recommendations for aws", async () => {
       const expectedRecommendations: RecommendationResult[] = [
         {
-          cloudProvider: 'AWS',
-          accountId: 'account-id',
-          accountName: 'account-name',
-          region: 'us-east-1',
-          recommendationType: 'Terminate',
-          recommendationDetail: 'Terminate instance: instance-name',
+          cloudProvider: "AWS",
+          accountId: "account-id",
+          accountName: "account-name",
+          region: "us-east-1",
+          recommendationType: "Terminate",
+          recommendationDetail: "Terminate instance: instance-name",
           kilowattHourSavings: 5,
           co2eSavings: 4,
           costSavings: 3,
         },
-      ]
+      ];
 
-      getDataForGCPRecommendations.mockResolvedValue([])
-      getDataForAzureRecommendations.mockResolvedValue([])
-      getDataForAWSRecommendations.mockResolvedValue(expectedRecommendations)
-      const result = await app.getRecommendations(defaultRequest)
+      getDataForGCPRecommendations.mockResolvedValue([]);
+      getDataForAzureRecommendations.mockResolvedValue([]);
+      getDataForAWSRecommendations.mockResolvedValue(expectedRecommendations);
+      const result = await app.getRecommendations(defaultRequest);
 
       expect(getDataForAWSRecommendations).toHaveBeenCalledWith(
-        AWS_RECOMMENDATIONS_TARGETS.SAME_INSTANCE_FAMILY,
-      )
-      expect(result).toEqual(expectedRecommendations)
-    })
+        AWS_RECOMMENDATIONS_TARGETS.SAME_INSTANCE_FAMILY
+      );
+      expect(result).toEqual(expectedRecommendations);
+    });
 
-    it('returns recommendations for aws with billing data', async () => {
-      ;(configLoader as jest.Mock).mockReturnValue({
+    it("returns recommendations for aws with billing data", async () => {
+      (configLoader as jest.Mock).mockReturnValue({
         ...configLoader(),
         AWS: {
           ...configLoader().AWS,
           USE_BILLING_DATA: true,
         },
-      })
+      });
       const expectedRecommendations: RecommendationResult[] = [
         {
-          cloudProvider: 'AWS',
-          accountId: 'account-id',
-          accountName: 'account-name',
-          region: 'us-east-1',
-          recommendationType: 'Terminate',
-          recommendationDetail: 'Terminate instance: instance-name',
+          cloudProvider: "AWS",
+          accountId: "account-id",
+          accountName: "account-name",
+          region: "us-east-1",
+          recommendationType: "Terminate",
+          recommendationDetail: "Terminate instance: instance-name",
           kilowattHourSavings: 5,
           co2eSavings: 4,
           costSavings: 3,
         },
-      ]
+      ];
 
-      getDataForGCPRecommendations.mockResolvedValue([])
-      getDataForAzureRecommendations.mockResolvedValue([])
-      getDataForAWSRecommendations.mockResolvedValue(expectedRecommendations)
-      const result = await app.getRecommendations(defaultRequest)
+      getDataForGCPRecommendations.mockResolvedValue([]);
+      getDataForAzureRecommendations.mockResolvedValue([]);
+      getDataForAWSRecommendations.mockResolvedValue(expectedRecommendations);
+      const result = await app.getRecommendations(defaultRequest);
 
-      expect(result).toEqual(expectedRecommendations)
-    })
+      expect(result).toEqual(expectedRecommendations);
+    });
 
-    it('returns recommendations for aws with Cross Instance Family specified', async () => {
-      ;(configLoader as jest.Mock).mockReturnValue({
+    it("returns recommendations for aws with Cross Instance Family specified", async () => {
+      (configLoader as jest.Mock).mockReturnValue({
         ...configLoader(),
         AWS: {
           ...configLoader().AWS,
           USE_BILLING_DATA: true,
         },
-      })
+      });
 
       const request: RecommendationRequest = {
         awsRecommendationTarget:
           AWS_RECOMMENDATIONS_TARGETS.CROSS_INSTANCE_FAMILY,
-      }
+      };
 
       const expectedRecommendations: RecommendationResult[] = [
         {
-          cloudProvider: 'AWS',
-          accountId: 'account-id',
-          accountName: 'account-name',
-          region: 'us-east-1',
-          recommendationType: 'Terminate',
-          recommendationDetail: 'Terminate instance: instance-name',
+          cloudProvider: "AWS",
+          accountId: "account-id",
+          accountName: "account-name",
+          region: "us-east-1",
+          recommendationType: "Terminate",
+          recommendationDetail: "Terminate instance: instance-name",
           kilowattHourSavings: 5,
           co2eSavings: 4,
           costSavings: 3,
         },
-      ]
+      ];
 
-      getDataForGCPRecommendations.mockResolvedValue([])
-      getDataForAzureRecommendations.mockResolvedValue([])
-      getDataForAWSRecommendations.mockResolvedValue(expectedRecommendations)
-      const result = await app.getRecommendations(request)
+      getDataForGCPRecommendations.mockResolvedValue([]);
+      getDataForAzureRecommendations.mockResolvedValue([]);
+      getDataForAWSRecommendations.mockResolvedValue(expectedRecommendations);
+      const result = await app.getRecommendations(request);
 
-      expect(result).toEqual(expectedRecommendations)
+      expect(result).toEqual(expectedRecommendations);
       expect(getDataForAWSRecommendations).toHaveBeenCalledWith(
-        AWS_RECOMMENDATIONS_TARGETS.CROSS_INSTANCE_FAMILY,
-      )
-    })
+        AWS_RECOMMENDATIONS_TARGETS.CROSS_INSTANCE_FAMILY
+      );
+    });
 
-    it('returns recommendations for aws with Same Instance Family specified', async () => {
-      ;(configLoader as jest.Mock).mockReturnValue({
+    it("returns recommendations for aws with Same Instance Family specified", async () => {
+      (configLoader as jest.Mock).mockReturnValue({
         ...configLoader(),
         AWS: {
           ...configLoader().AWS,
           USE_BILLING_DATA: true,
         },
-      })
+      });
 
       const request: RecommendationRequest = {
         awsRecommendationTarget:
           AWS_RECOMMENDATIONS_TARGETS.SAME_INSTANCE_FAMILY,
-      }
+      };
 
       const expectedRecommendations: RecommendationResult[] = [
         {
-          cloudProvider: 'AWS',
-          accountId: 'account-id',
-          accountName: 'account-name',
-          region: 'us-east-1',
-          recommendationType: 'Terminate',
-          recommendationDetail: 'Terminate instance: instance-name',
+          cloudProvider: "AWS",
+          accountId: "account-id",
+          accountName: "account-name",
+          region: "us-east-1",
+          recommendationType: "Terminate",
+          recommendationDetail: "Terminate instance: instance-name",
           kilowattHourSavings: 5,
           co2eSavings: 4,
           costSavings: 3,
         },
-      ]
+      ];
 
-      getDataForGCPRecommendations.mockResolvedValue([])
-      getDataForAzureRecommendations.mockResolvedValue([])
-      getDataForAWSRecommendations.mockResolvedValue(expectedRecommendations)
-      const result = await app.getRecommendations(request)
+      getDataForGCPRecommendations.mockResolvedValue([]);
+      getDataForAzureRecommendations.mockResolvedValue([]);
+      getDataForAWSRecommendations.mockResolvedValue(expectedRecommendations);
+      const result = await app.getRecommendations(request);
 
-      expect(result).toEqual(expectedRecommendations)
+      expect(result).toEqual(expectedRecommendations);
       expect(getDataForAWSRecommendations).toHaveBeenCalledWith(
-        AWS_RECOMMENDATIONS_TARGETS.SAME_INSTANCE_FAMILY,
-      )
-    })
+        AWS_RECOMMENDATIONS_TARGETS.SAME_INSTANCE_FAMILY
+      );
+    });
 
-    it('returns recommendations for gcp', async () => {
+    it("returns recommendations for gcp", async () => {
       const expectedRecommendations: RecommendationResult[] = [
         {
-          cloudProvider: 'GCP',
-          accountId: 'account-id',
-          accountName: 'account-name',
-          region: 'us-east1',
-          recommendationType: 'STOP_VM',
+          cloudProvider: "GCP",
+          accountId: "account-id",
+          accountName: "account-name",
+          region: "us-east1",
+          recommendationType: "STOP_VM",
           recommendationDetail:
             "Save cost by stopping Idle VM 'test-instance'.",
           kilowattHourSavings: 5,
@@ -1201,146 +1195,146 @@ describe('App', () => {
           costSavings: 3,
         },
         {
-          cloudProvider: 'GCP',
-          accountId: 'account-id-5',
-          accountName: 'account-name-5',
-          region: 'us-east1',
-          recommendationType: 'STOP_VM',
+          cloudProvider: "GCP",
+          accountId: "account-id-5",
+          accountName: "account-name-5",
+          region: "us-east1",
+          recommendationType: "STOP_VM",
           recommendationDetail:
             "Save cost by stopping Idle VM 'test-instance'.",
           kilowattHourSavings: 5,
           co2eSavings: 20,
           costSavings: 13,
         },
-      ]
+      ];
 
-      getDataForAWSRecommendations.mockResolvedValue([])
-      getDataForAzureRecommendations.mockResolvedValue([])
+      getDataForAWSRecommendations.mockResolvedValue([]);
+      getDataForAzureRecommendations.mockResolvedValue([]);
       getDataForGCPRecommendations
         .mockResolvedValueOnce([expectedRecommendations[0]])
-        .mockResolvedValue([expectedRecommendations[1]])
-      const result = await app.getRecommendations(defaultRequest)
+        .mockResolvedValue([expectedRecommendations[1]]);
+      const result = await app.getRecommendations(defaultRequest);
 
-      expect(result).toEqual(expectedRecommendations)
-    })
+      expect(result).toEqual(expectedRecommendations);
+    });
 
-    it('returns recommendations for gcp with billing data', async () => {
-      ;(configLoader as jest.Mock).mockReturnValue({
+    it("returns recommendations for gcp with billing data", async () => {
+      (configLoader as jest.Mock).mockReturnValue({
         ...configLoader(),
         GCP: {
           ...configLoader().GCP,
           USE_BILLING_DATA: true,
         },
-      })
+      });
       const expectedRecommendations: RecommendationResult[] = [
         {
-          cloudProvider: 'GCP',
-          accountId: 'account-id',
-          accountName: 'account-name',
-          region: 'us-east-1',
-          recommendationType: 'STOP_VM',
+          cloudProvider: "GCP",
+          accountId: "account-id",
+          accountName: "account-name",
+          region: "us-east-1",
+          recommendationType: "STOP_VM",
           recommendationDetail:
             "Save cost by stopping Idle VM 'test-instance'.",
           kilowattHourSavings: 5,
           co2eSavings: 20,
           costSavings: 3,
         },
-      ]
+      ];
 
-      getDataForAWSRecommendations.mockResolvedValue([])
-      getDataForAzureRecommendations.mockResolvedValue([])
-      getDataForGCPRecommendations.mockResolvedValue(expectedRecommendations)
-      const result = await app.getRecommendations(defaultRequest)
+      getDataForAWSRecommendations.mockResolvedValue([]);
+      getDataForAzureRecommendations.mockResolvedValue([]);
+      getDataForGCPRecommendations.mockResolvedValue(expectedRecommendations);
+      const result = await app.getRecommendations(defaultRequest);
 
-      expect(result).toEqual(expectedRecommendations)
-    })
-    it('returns recommendations for azure with billing data', async () => {
-      ;(configLoader as jest.Mock).mockReturnValue({
+      expect(result).toEqual(expectedRecommendations);
+    });
+    it("returns recommendations for azure with billing data", async () => {
+      (configLoader as jest.Mock).mockReturnValue({
         ...configLoader(),
         AZURE: {
           ...configLoader().AZURE,
           USE_BILLING_DATA: true,
         },
-      })
+      });
 
       const expectedRecommendations: RecommendationResult[] = [
         {
-          cloudProvider: 'AZURE',
-          accountId: 'account-id',
-          accountName: 'account-name',
-          region: 'useast',
-          recommendationType: 'Shutdown',
-          recommendationDetail: 'Shutdown instance: test-vm-name.',
+          cloudProvider: "AZURE",
+          accountId: "account-id",
+          accountName: "account-name",
+          region: "useast",
+          recommendationType: "Shutdown",
+          recommendationDetail: "Shutdown instance: test-vm-name.",
           kilowattHourSavings: 5,
           co2eSavings: 20,
           costSavings: 3,
         },
-      ]
+      ];
 
-      getDataForAWSRecommendations.mockResolvedValue([])
-      getDataForGCPRecommendations.mockResolvedValue([])
-      getDataForAzureRecommendations.mockResolvedValue(expectedRecommendations)
-      initializeAzureAccount.mockResolvedValue()
-      const result = await app.getRecommendations(defaultRequest)
+      getDataForAWSRecommendations.mockResolvedValue([]);
+      getDataForGCPRecommendations.mockResolvedValue([]);
+      getDataForAzureRecommendations.mockResolvedValue(expectedRecommendations);
+      initializeAzureAccount.mockResolvedValue();
+      const result = await app.getRecommendations(defaultRequest);
 
-      expect(result).toEqual(expectedRecommendations)
-    })
+      expect(result).toEqual(expectedRecommendations);
+    });
 
-    it('returns recommendations for azure with billing data for only the specified subscriptions', async () => {
-      ;(configLoader as jest.Mock).mockReturnValue({
+    it("returns recommendations for azure with billing data for only the specified subscriptions", async () => {
+      (configLoader as jest.Mock).mockReturnValue({
         ...configLoader(),
         AZURE: {
           ...configLoader().AZURE,
           USE_BILLING_DATA: true,
         },
-      })
+      });
 
       const expectedRecommendations: RecommendationResult[] = [
         {
-          cloudProvider: 'AZURE',
-          accountId: 'account-id-2',
-          accountName: 'account-name',
-          region: 'useast',
-          recommendationType: 'Shutdown',
-          recommendationDetail: 'Shutdown instance: test-vm-name.',
+          cloudProvider: "AZURE",
+          accountId: "account-id-2",
+          accountName: "account-name",
+          region: "useast",
+          recommendationType: "Shutdown",
+          recommendationDetail: "Shutdown instance: test-vm-name.",
           kilowattHourSavings: 5,
           co2eSavings: 20,
           costSavings: 3,
         },
-      ]
+      ];
 
       const newDefaultRequest = {
         ...defaultRequest,
-        accounts: ['account-id-2'],
-      }
+        accounts: ["account-id-2"],
+      };
 
-      getDataForAWSRecommendations.mockResolvedValue([])
-      getDataForGCPRecommendations.mockResolvedValue([])
-      getDataForAzureRecommendations.mockResolvedValue(expectedRecommendations)
-      initializeAzureAccount.mockResolvedValue()
-      const result = await app.getRecommendations(newDefaultRequest)
+      getDataForAWSRecommendations.mockResolvedValue([]);
+      getDataForGCPRecommendations.mockResolvedValue([]);
+      getDataForAzureRecommendations.mockResolvedValue(expectedRecommendations);
+      initializeAzureAccount.mockResolvedValue();
+      const result = await app.getRecommendations(newDefaultRequest);
 
-      expect(result).toEqual(expectedRecommendations)
-    })
-  })
-})
+      expect(result).toEqual(expectedRecommendations);
+    });
+  });
+});
 
 function setUpServices(
   servicesRegistered: jest.Mock<ICloudService[]>,
   mockGetEstimates: jest.Mock<Promise<FootprintEstimate[]>>[],
   serviceNames: string[],
-  mockGetCosts: jest.Mock<Promise<Cost[]>>[],
+  mockGetCosts: jest.Mock<Promise<Cost[]>>[]
 ) {
-  let mockGetUsage: jest.Mock<Promise<UsageData[]>>
   const mockCloudServices: ICloudService[] = mockGetEstimates.map(
     (mockGetEstimate, i) => {
       return {
         getEstimates: mockGetEstimate,
         serviceName: serviceNames[i],
-        getUsage: mockGetUsage,
+        // ts-ignore
+        getUsage: jest.fn(),
         getCosts: mockGetCosts[i],
-      }
-    },
-  )
-  servicesRegistered.mockReturnValue(mockCloudServices)
+      };
+    }
+  );
+  servicesRegistered.mockReturnValue(mockCloudServices);
 }

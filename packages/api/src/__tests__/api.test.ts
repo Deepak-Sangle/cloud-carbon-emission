@@ -6,8 +6,9 @@ import express from 'express'
 import request from 'supertest'
 
 import {
-  EstimationResult,
   EmissionRatioResult,
+  EstimationResult,
+  FootprintResponse,
   RecommendationResult,
 } from '@cloud-carbon-footprint/common'
 
@@ -46,7 +47,13 @@ describe('api', () => {
       const startDate = '2020-07-12'
       const endDate = '2020-07-13'
 
-      const expectedResponse: EstimationResult[] = []
+      const expectedResponse: FootprintResponse = {
+        estimates: [],
+        calculationConstants: {
+          cloudProviderConstants: {},
+          emissionsFactors: {},
+        },
+      }
       mockGetCostAndEstimates.mockResolvedValueOnce(expectedResponse)
 
       //run
@@ -80,7 +87,13 @@ describe('api', () => {
       const tagKeys = Object.keys(tags)
       tagKeys.forEach((key) => (requestUrl += `&tags[${key}]=${tags[key]}`))
 
-      const expectedResponse: EstimationResult[] = []
+      const expectedResponse: FootprintResponse = {
+        estimates: [],
+        calculationConstants: {
+          cloudProviderConstants: {},
+          emissionsFactors: {},
+        },
+      }
       mockGetCostAndEstimates.mockResolvedValueOnce(expectedResponse)
 
       //run

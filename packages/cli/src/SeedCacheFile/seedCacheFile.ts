@@ -2,14 +2,10 @@
  * © 2021 Thoughtworks, Inc.
  */
 
+import { App, createValidFootprintRequest } from '@cloud-carbon-footprint/app'
+import console from 'console'
 import moment, { Moment } from 'moment'
 import { inputPrompt, listPrompt } from '../common'
-import {
-  App,
-  createValidFootprintRequest,
-  MongoDbCacheManager,
-} from '@cloud-carbon-footprint/app'
-import { configLoader } from '@cloud-carbon-footprint/common'
 
 /**
  * Logs the progress of the estimate request based on the given date range
@@ -79,10 +75,6 @@ export default async function seedCacheFile(): Promise<void> {
     }...`,
   )
 
-  if (configLoader().CACHE_MODE === 'MONGODB') {
-    await MongoDbCacheManager.createDbConnection()
-  }
-
   // Makes getCostAndEstimates requests in chunks based on request method and time frequency
   while (currentDate.isSameOrBefore(endDate)) {
     // Use the current date window as the inclusive start/end date of the request
@@ -105,11 +97,6 @@ export default async function seedCacheFile(): Promise<void> {
       timePerRequest,
       groupBy as moment.unitOfTime.DurationConstructor,
     )
-  }
-
-  if (configLoader().CACHE_MODE === 'MONGODB') {
-    await MongoDbCacheManager.mongoClient.close()
-    console.info('MongoDB connection closed')
   }
 
   console.info(

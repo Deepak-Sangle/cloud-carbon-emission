@@ -5,9 +5,8 @@
 import {
   configLoader,
   EstimationRequestValidationError,
-  EstimationResult,
+  FootprintResponse,
 } from '@cloud-carbon-footprint/common'
-import { MongoDbCacheManager } from '@cloud-carbon-footprint/app'
 import moment from 'moment'
 import seedCacheFile from '../../SeedCacheFile/seedCacheFile'
 import * as common from '../../common'
@@ -66,7 +65,13 @@ describe('seedCacheFile', () => {
     })
 
     it('logs success when cache file is seeded using the app', async () => {
-      const expectedResponse: EstimationResult[] = []
+      const expectedResponse: FootprintResponse = {
+        estimates: [],
+        calculationConstants: {
+          cloudProviderConstants: {},
+          emissionsFactors: {},
+        },
+      }
       mockGetCostAndEstimates.mockResolvedValueOnce(expectedResponse)
       await seedCacheFile()
 
@@ -113,7 +118,13 @@ describe('seedCacheFile', () => {
       })
 
       it('throws an estimation validation error', async () => {
-        const expectedResponse: EstimationResult[] = []
+        const expectedResponse: FootprintResponse = {
+          estimates: [],
+          calculationConstants: {
+            cloudProviderConstants: {},
+            emissionsFactors: {},
+          },
+        }
         mockGetCostAndEstimates.mockResolvedValueOnce(expectedResponse)
 
         await expect(() => seedCacheFile()).rejects.toThrow(
@@ -142,7 +153,13 @@ describe('seedCacheFile', () => {
       })
 
       it('throws an estimation validation error', async () => {
-        const expectedResponse: EstimationResult[] = []
+        const expectedResponse: FootprintResponse = {
+          estimates: [],
+          calculationConstants: {
+            cloudProviderConstants: {},
+            emissionsFactors: {},
+          },
+        }
         mockGetCostAndEstimates.mockResolvedValueOnce(expectedResponse)
 
         await expect(() => seedCacheFile()).rejects.toThrow(
@@ -173,7 +190,13 @@ describe('seedCacheFile', () => {
         mockInputPrompts.mockResolvedValueOnce('') // No option given for daysPerRequest
         mockInputPrompts.mockResolvedValueOnce('') // No option given for cloud provider to seed
 
-        const expectedResponse: EstimationResult[] = []
+        const expectedResponse: FootprintResponse = {
+          estimates: [],
+          calculationConstants: {
+            cloudProviderConstants: {},
+            emissionsFactors: {},
+          },
+        }
         mockGetCostAndEstimates.mockRestore()
         mockGetCostAndEstimates.mockResolvedValue(expectedResponse)
 
@@ -263,7 +286,13 @@ describe('seedCacheFile', () => {
 
           mockListPrompts.mockResolvedValueOnce(groupBy)
 
-          const expectedResponse: EstimationResult[] = []
+          const expectedResponse: FootprintResponse = {
+            estimates: [],
+            calculationConstants: {
+              cloudProviderConstants: {},
+              emissionsFactors: {},
+            },
+          }
           mockGetCostAndEstimates.mockRestore()
           mockGetCostAndEstimates.mockResolvedValue(expectedResponse)
 
@@ -295,12 +324,6 @@ describe('seedCacheFile', () => {
         CACHE_MODE: 'MONGODB',
       })
 
-      const mockCreateDbConnection = jest.fn()
-      const mockMongoClient: any = { close: jest.fn() }
-
-      MongoDbCacheManager.createDbConnection = mockCreateDbConnection
-      MongoDbCacheManager.mongoClient = mockMongoClient
-
       mockInputPrompts
         .mockResolvedValueOnce('2020-07-01')
         .mockResolvedValueOnce('2020-07-07')
@@ -310,13 +333,16 @@ describe('seedCacheFile', () => {
         .mockResolvedValueOnce('day')
         .mockResolvedValueOnce('single')
 
-      const mockResponse: EstimationResult[] = []
+      const mockResponse: FootprintResponse = {
+        estimates: [],
+        calculationConstants: {
+          cloudProviderConstants: {},
+          emissionsFactors: {},
+        },
+      }
       mockGetCostAndEstimates.mockResolvedValueOnce(mockResponse)
 
       await seedCacheFile()
-
-      expect(mockCreateDbConnection).toHaveBeenCalledTimes(1)
-      expect(mockMongoClient.close).toHaveBeenCalledTimes(1)
     })
   })
 })

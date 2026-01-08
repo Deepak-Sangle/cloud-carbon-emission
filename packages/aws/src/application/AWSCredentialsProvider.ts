@@ -2,14 +2,14 @@
  * © 2021 Thoughtworks, Inc.
  */
 
+import { configLoader } from '@cloud-carbon-footprint/common'
 import {
-  Credentials,
   config as awsConfig,
   ChainableTemporaryCredentials,
+  Credentials,
   EC2MetadataCredentials,
   ECSCredentials,
 } from 'aws-sdk'
-import { configLoader } from '@cloud-carbon-footprint/common'
 import GCPCredentials from './GCPCredentials'
 
 export default class AWSCredentialsProvider {
@@ -26,11 +26,18 @@ export default class AWSCredentialsProvider {
         const partition = configLoader().AWS.IS_AWS_GLOBAL ? `aws` : `aws-cn`
         return new ChainableTemporaryCredentials({
           params: {
-            RoleArn: `arn:${partition}:iam::${accountId}:role/${
-              configLoader().AWS.authentication.options.targetRoleName
-            }`,
-            RoleSessionName:
-              configLoader().AWS.authentication.options.targetRoleName,
+            // target role is always ccf since our cloudformation template creates the role
+            RoleArn: `arn:${partition}:iam::${accountId}:role/ccf`,
+            ExternalId: configLoader().AWS.authentication.options.externalId,
+            RoleSessionName: 'ccf',
+          },
+          stsConfig: {
+            credentials: {
+              accessKeyId:
+                configLoader().AWS.authentication.options.accessKeyId,
+              secretAccessKey:
+                configLoader().AWS.authentication.options.secretAccessKey,
+            },
           },
         })
       case 'EC2-METADATA':

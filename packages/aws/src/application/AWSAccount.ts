@@ -14,6 +14,15 @@ import {
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 
 import {
+  AWS_RECOMMENDATIONS_TARGETS,
+  configLoader,
+  EstimationResult,
+  GroupBy,
+  LookupTableInput,
+  LookupTableOutput,
+  RecommendationResult,
+} from '@cloud-carbon-footprint/common'
+import {
   CloudProviderAccount,
   ComputeEstimator,
   EmbodiedEmissionsEstimator,
@@ -24,17 +33,9 @@ import {
   StorageEstimator,
   UnknownEstimator,
 } from '@cloud-carbon-footprint/core'
-import {
-  AWS_RECOMMENDATIONS_TARGETS,
-  configLoader,
-  EstimationResult,
-  GroupBy,
-  LookupTableInput,
-  LookupTableOutput,
-  RecommendationResult,
-} from '@cloud-carbon-footprint/common'
 
 import {
+  AthenaConfig,
   CostAndUsageReports,
   EBS,
   EC2,
@@ -57,14 +58,17 @@ import { Recommendations } from '../lib/Recommendations'
 
 export default class AWSAccount extends CloudProviderAccount {
   private readonly credentials: Credentials
+  private readonly athenaConfig?: AthenaConfig
 
   constructor(
     public id: string,
     public name: string,
     private regions: string[],
+    athenaConfig?: AthenaConfig,
   ) {
     super()
     this.credentials = AWSCredentialsProvider.create(id)
+    this.athenaConfig = athenaConfig
   }
 
   async getDataForRegions(
@@ -137,6 +141,11 @@ export default class AWSAccount extends CloudProviderAccount {
     endDate: Date,
     grouping: GroupBy,
   ): Promise<EstimationResult[]> {
+    // Use athenaConfig region if available, otherwise fall back to global config
+    const athenaRegion = this.athenaConfig
+      ? this.regions[0] // For billing accounts, region is passed via constructor
+      : configLoader().AWS.ATHENA_REGION
+
     const costAndUsageReportsService = new CostAndUsageReports(
       new ComputeEstimator(),
       new StorageEstimator(AWS_CLOUD_CONSTANTS.SSDCOEFFICIENT),
@@ -148,11 +157,9 @@ export default class AWSAccount extends CloudProviderAccount {
         AWS_CLOUD_CONSTANTS.SERVER_EXPECTED_LIFESPAN,
       ),
       this.createServiceWrapper(
-        this.getServiceConfigurationOptions(
-          configLoader().AWS.ATHENA_REGION,
-          this.credentials,
-        ),
+        this.getServiceConfigurationOptions(athenaRegion, this.credentials),
       ),
+      this.athenaConfig,
     )
     return await costAndUsageReportsService.getEstimates(
       startDate,

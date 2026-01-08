@@ -6,15 +6,14 @@ if (process.env.NODE_ENV === 'production') {
   require('module-alias/register')
 }
 
+import cors, { CorsOptions } from 'cors'
 import express from 'express'
 import helmet from 'helmet'
-import cors, { CorsOptions } from 'cors'
 
+import { Logger } from '@cloud-carbon-footprint/common'
 import { createRouter } from './api'
-import { Logger, configLoader } from '@cloud-carbon-footprint/common'
-import { MongoDbCacheManager } from '@cloud-carbon-footprint/app'
-import swaggerDocs from './utils/swagger'
 import auth from './utils/auth'
+import swaggerDocs from './utils/swagger'
 
 const port = process.env.PORT || 4000
 const httpApp = express()
@@ -25,11 +24,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 httpApp.use(helmet())
-
-// Establish Mongo Connection if cache method selected
-if (configLoader()?.CACHE_MODE === 'MONGODB') {
-  MongoDbCacheManager.createDbConnection()
-}
+httpApp.use(express.json())
 
 if (process.env.ENABLE_CORS) {
   const corsOptions: CorsOptions = {
@@ -57,10 +52,6 @@ httpApp.listen(port, () => {
 
 // Instructions for graceful shutdown
 process.on('SIGINT', async () => {
-  if (configLoader()?.CACHE_MODE === 'MONGODB') {
-    await MongoDbCacheManager.mongoClient.close()
-    serverLogger.info('\nMongoDB connection closed')
-  }
   serverLogger.info('Cloud Carbon Footprint Server shutting down...')
   process.exit()
 })

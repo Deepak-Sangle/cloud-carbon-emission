@@ -14,13 +14,55 @@ import {
 } from '@cloud-carbon-footprint/app'
 
 import {
+  CCFConfig,
+  configLoader,
   EstimationRequestValidationError,
   Logger,
   PartialDataError,
   RecommendationsRequestValidationError,
+  setConfig,
 } from '@cloud-carbon-footprint/common'
 
 const apiLogger = new Logger('api')
+
+/**
+ * Deep merges two objects, with source values taking precedence over target values.
+ * Arrays and primitive values from source override target values.
+ *
+ * @param target - The base object to merge into
+ * @param source - The object with override values
+ * @returns A new object with merged values
+ */
+function deepMerge(target: CCFConfig, source: Partial<CCFConfig>): CCFConfig {
+  const result = { ...target }
+
+  for (const key in source) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      const sourceValue = source[key]
+      const targetValue = target[key]
+
+      if (
+        sourceValue !== null &&
+        typeof sourceValue === 'object' &&
+        !Array.isArray(sourceValue) &&
+        targetValue !== null &&
+        typeof targetValue === 'object' &&
+        !Array.isArray(targetValue)
+      ) {
+        // Recursively merge nested objects
+        result[key] = deepMerge(
+          targetValue as Record<string, unknown>,
+          sourceValue as Record<string, unknown>,
+        )
+      } else if (sourceValue !== undefined) {
+        // Override with source value (including arrays and primitives)
+        result[key] = sourceValue
+      }
+    }
+  }
+
+  return result
+}
 
 /**
  * Handles the fetching and calculations of cloud footprint estimates for a given date range.
@@ -53,6 +95,15 @@ export const FootprintApiMiddleware = async function (
     apiLogger.warn('GroupBy parameter not specified, adopting default "day"')
     rawRequest.groupBy = 'day'
   }
+
+  // Get the default config and merge with any override config from request body
+  const defaultConfig = configLoader()
+  const overrideConfig: Partial<CCFConfig> = req.body?.config || {}
+  const mergedConfig = deepMerge(defaultConfig, overrideConfig)
+
+  // Apply the merged config
+  setConfig(mergedConfig)
+
   const footprintApp = new App()
   try {
     const estimationRequest = createValidFootprintRequest(rawRequest)
@@ -72,6 +123,9 @@ export const FootprintApiMiddleware = async function (
     ) {
       res.status(416).send(e.message)
     } else res.status(500).send('Internal Server Error')
+  } finally {
+    // Reset config back to default after request completes
+    setConfig(defaultConfig)
   }
 }
 

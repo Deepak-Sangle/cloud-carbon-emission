@@ -2,12 +2,30 @@
  * © 2021 Thoughtworks, Inc.
  */
 
-import { promises as fs } from 'fs'
 import {
+  ALI_CLOUD_CONSTANTS,
+  ALI_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
+  AliAccount,
+} from '@cloud-carbon-footprint/ali'
+import {
+  AWS_CLOUD_CONSTANTS,
+  AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
+  AWSAccount,
+} from '@cloud-carbon-footprint/aws'
+import {
+  AZURE_CLOUD_CONSTANTS,
+  AZURE_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
+  AzureAccount,
+} from '@cloud-carbon-footprint/azure'
+import {
+  AccountDetails,
+  AWSBillingAccountConfig,
+  CalculationConstants,
+  CloudProviderConstants,
   configLoader,
   EmissionRatioResult,
   EstimationResult,
-  AccountDetails,
+  FootprintResponse,
   GroupBy,
   Logger,
   LookupTableInput,
@@ -17,65 +35,154 @@ import {
   RecommendationResult,
   reduceByTimestamp,
 } from '@cloud-carbon-footprint/common'
+import { CloudConstantsByProvider } from '@cloud-carbon-footprint/core'
 import {
-  AZURE_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
-  AzureAccount,
-} from '@cloud-carbon-footprint/azure'
-import {
-  AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
-  AWSAccount,
-} from '@cloud-carbon-footprint/aws'
-import { GCPAccount, getGCPEmissionsFactors } from '@cloud-carbon-footprint/gcp'
-import {
-  ALI_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
-  AliAccount,
-} from '@cloud-carbon-footprint/ali'
+  GCP_CLOUD_CONSTANTS,
+  GCPAccount,
+  getGCPEmissionsFactors,
+} from '@cloud-carbon-footprint/gcp'
 import { OnPremise } from '@cloud-carbon-footprint/on-premise'
+import { promises as fs } from 'fs'
 
-import cache from './Cache'
 import { EstimationRequest, RecommendationRequest } from './CreateValidRequest'
 import { includeCloudProviders } from './common/helpers'
 
 export const recommendationsMockPath = 'recommendations.mock.json'
 
 export default class App {
-  @cache()
+  /**
+   * Converts cloud provider constants to the API response format
+   */
+  private static toCloudProviderConstants(
+    constants: CloudConstantsByProvider,
+  ): CloudProviderConstants {
+    return {
+      pueAverage: constants.PUE_AVG,
+      pueByRegion: constants.PUE_TRAILING_TWELVE_MONTH,
+      ssdCoefficient: constants.SSDCOEFFICIENT,
+      hddCoefficient: constants.HDDCOEFFICIENT,
+      memoryCoefficient: constants.MEMORY_COEFFICIENT,
+      networkingCoefficient: constants.NETWORKING_COEFFICIENT,
+      averageCpuUtilization: constants.AVG_CPU_UTILIZATION_2020,
+      serverExpectedLifespan: constants.SERVER_EXPECTED_LIFESPAN,
+      replicationFactors: constants.REPLICATION_FACTORS,
+      minWattsAverage: constants.MIN_WATTS_AVG || constants.MIN_WATTS_MEDIAN,
+      maxWattsAverage: constants.MAX_WATTS_AVG || constants.MAX_WATTS_MEDIAN,
+      memoryAverage: constants.MEMORY_AVG,
+    }
+  }
+
+  /**
+   * Gets the calculation constants used to compute carbon footprint estimates.
+   * Includes PUE factors, emissions intensity factors, and other coefficients.
+   */
+  getCalculationConstants(): CalculationConstants {
+    const config = configLoader()
+
+    const calculationConstants: CalculationConstants = {
+      cloudProviderConstants: {},
+      emissionsFactors: {},
+    }
+
+    // Add AWS constants if enabled
+    if (config.AWS?.INCLUDE_ESTIMATES) {
+      calculationConstants.cloudProviderConstants.aws =
+        App.toCloudProviderConstants(AWS_CLOUD_CONSTANTS)
+      calculationConstants.emissionsFactors.aws =
+        AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH
+    }
+
+    // Add GCP constants if enabled
+    if (config.GCP?.INCLUDE_ESTIMATES) {
+      calculationConstants.cloudProviderConstants.gcp =
+        App.toCloudProviderConstants(GCP_CLOUD_CONSTANTS)
+      calculationConstants.emissionsFactors.gcp = getGCPEmissionsFactors()
+    }
+
+    // Add Azure constants if enabled
+    if (config.AZURE?.INCLUDE_ESTIMATES) {
+      calculationConstants.cloudProviderConstants.azure =
+        App.toCloudProviderConstants(AZURE_CLOUD_CONSTANTS)
+      calculationConstants.emissionsFactors.azure =
+        AZURE_EMISSIONS_FACTORS_METRIC_TON_PER_KWH
+    }
+
+    // Add Ali constants if enabled
+    if (config.ALI?.INCLUDE_ESTIMATES) {
+      calculationConstants.cloudProviderConstants.ali =
+        App.toCloudProviderConstants(ALI_CLOUD_CONSTANTS)
+      calculationConstants.emissionsFactors.ali =
+        ALI_EMISSIONS_FACTORS_METRIC_TON_PER_KWH
+    }
+
+    return calculationConstants
+  }
+
   async getCostAndEstimates(
     request: EstimationRequest,
-  ): Promise<EstimationResult[]> {
+  ): Promise<FootprintResponse> {
     const appLogger = new Logger('App')
     const { startDate, endDate, accounts, cloudProviderToSeed } = request
     const grouping = request.groupBy as GroupBy
     const config = configLoader()
     includeCloudProviders(cloudProviderToSeed, config)
     const { AWS, GCP, AZURE, ALI } = config
+    appLogger.info(`Using config: ${JSON.stringify(config, null, 2)}`)
     if (configLoader().ELECTRICITY_MAPS_TOKEN)
       appLogger.info('Using Electricity Maps')
     if (process.env.TEST_MODE) {
-      return []
+      return {
+        estimates: [],
+        calculationConstants: this.getCalculationConstants(),
+      }
     }
 
     const AWSEstimatesByRegion: EstimationResult[][] = []
     if (AWS?.INCLUDE_ESTIMATES) {
       appLogger.info('Starting AWS Estimations')
       if (AWS?.USE_BILLING_DATA) {
-        const estimates = await new AWSAccount(
-          AWS.BILLING_ACCOUNT_ID,
-          AWS.BILLING_ACCOUNT_NAME,
-          [AWS.ATHENA_REGION],
-        ).getDataFromCostAndUsageReports(startDate, endDate, grouping)
-        AWSEstimatesByRegion.push(estimates)
+        // Check for multiple billing accounts configuration
+        const billingAccounts = AWS.billingAccounts as AWSBillingAccountConfig[]
+        if (billingAccounts && billingAccounts.length > 0) {
+          // Multi-account billing data mode
+          appLogger.info(
+            `Processing ${billingAccounts.length} AWS billing accounts`,
+          )
+          for (const billingAccount of billingAccounts) {
+            appLogger.info(
+              `Processing AWS billing account: ${billingAccount.name}`,
+            )
+            const athenaConfig = {
+              dataBaseName: billingAccount.athenaDbName,
+              tableName: billingAccount.athenaDbTable,
+              queryResultsLocation: billingAccount.athenaQueryResultLocation,
+            }
+            const estimates = await new AWSAccount(
+              billingAccount.id,
+              billingAccount.name,
+              [billingAccount.athenaRegion],
+              athenaConfig,
+            ).getDataFromCostAndUsageReports(startDate, endDate, grouping)
+            AWSEstimatesByRegion.push(estimates)
+          }
+        } else {
+          // Single billing account (backward compatible)
+          const estimates = await new AWSAccount(
+            AWS.BILLING_ACCOUNT_ID,
+            AWS.BILLING_ACCOUNT_NAME,
+            [AWS.ATHENA_REGION],
+          ).getDataFromCostAndUsageReports(startDate, endDate, grouping)
+          AWSEstimatesByRegion.push(estimates)
+        }
       } else if (AWS?.accounts.length) {
         // Resolve AWS Estimates synchronously in order to avoid hitting API limits
         const awsAccounts = AWS.accounts as AccountDetails[]
         for (const account of awsAccounts) {
-          const estimates = await Promise.all(
-            await new AWSAccount(
-              account.id,
-              account.name,
-              AWS.CURRENT_REGIONS,
-            ).getDataForRegions(startDate, endDate, grouping),
-          )
+          const estimates = await new AWSAccount(
+            account.id,
+            account.name,
+            AWS.CURRENT_REGIONS,
+          ).getDataForRegions(startDate, endDate, grouping)
           AWSEstimatesByRegion.push(estimates)
         }
       }
@@ -137,13 +244,18 @@ export default class App {
       appLogger.info('Finished Ali Cloud Estimations')
     }
 
-    return reduceByTimestamp(
+    const estimates = reduceByTimestamp(
       AWSEstimatesByRegion.flat()
         .flat()
         .concat(GCPEstimatesByRegion.flat())
         .concat(AzureEstimatesByRegion.flat())
         .concat(AliEstimates.flat()),
     )
+
+    return {
+      estimates,
+      calculationConstants: this.getCalculationConstants(),
+    }
   }
 
   getEmissionsFactors(): EmissionRatioResult[] {
@@ -187,12 +299,33 @@ export default class App {
 
     const AWSRecommendations: RecommendationResult[][] = []
     if (AWS.USE_BILLING_DATA) {
-      const recommendations = await new AWSAccount(
-        AWS.BILLING_ACCOUNT_ID,
-        AWS.BILLING_ACCOUNT_NAME,
-        [AWS.ATHENA_REGION],
-      ).getDataForRecommendations(request.awsRecommendationTarget)
-      AWSRecommendations.push(recommendations)
+      // Check for multiple billing accounts configuration
+      const billingAccounts = AWS.billingAccounts as AWSBillingAccountConfig[]
+      if (billingAccounts && billingAccounts.length > 0) {
+        // Multi-account billing data mode
+        for (const billingAccount of billingAccounts) {
+          const athenaConfig = {
+            dataBaseName: billingAccount.athenaDbName,
+            tableName: billingAccount.athenaDbTable,
+            queryResultsLocation: billingAccount.athenaQueryResultLocation,
+          }
+          const recommendations = await new AWSAccount(
+            billingAccount.id,
+            billingAccount.name,
+            [billingAccount.athenaRegion],
+            athenaConfig,
+          ).getDataForRecommendations(request.awsRecommendationTarget)
+          AWSRecommendations.push(recommendations)
+        }
+      } else {
+        // Single billing account (backward compatible)
+        const recommendations = await new AWSAccount(
+          AWS.BILLING_ACCOUNT_ID,
+          AWS.BILLING_ACCOUNT_NAME,
+          [AWS.ATHENA_REGION],
+        ).getDataForRecommendations(request.awsRecommendationTarget)
+        AWSRecommendations.push(recommendations)
+      }
     } else {
       // Resolve AWS Estimates synchronously in order to avoid hitting API limits
       const awsAccounts = AWS.accounts as AccountDetails[]

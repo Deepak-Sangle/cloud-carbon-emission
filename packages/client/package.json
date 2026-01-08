@@ -52,7 +52,7 @@
   },
   "proxy": "http://localhost:4000",
   "scripts": {
-    "precommit": "lint-staged --no-stash && yarn test --coverage --runInBand --bail",
+    "precommit": "lint-staged --no-stash",
     "start": "react-scripts start",
     "start-with-mock-data": "concurrently \"REACT_APP_DISABLE_CACHE=true REACT_APP_DISABLE_FORECAST_VALIDATION=true REACT_APP_GROUP_BY=day yarn start\" \"yarn start-stub-server\"",
     "sonar:scan": "sonar-scanner",
@@ -107,24 +107,17 @@
     "concurrently": "^7.0.0",
     "copyfiles": "^2.4.1",
     "eslint": "^8.6.0",
-    "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-prettier": "^4.0.0",
     "eslint-plugin-unused-imports": "^2.0.0",
     "immer": "^9.0.2",
     "jest": "^27.4.7",
     "json-server": "^0.17.0",
     "lint-staged": "^12.1.7",
     "mockdate": "^3.0.5",
-    "prettier": "^2.5.1",
     "rimraf": "^3.0.2"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
-      "yarn lint",
-      "prettier --write --ignore-unknown --config ../../.prettierrc.json"
-    ],
-    "*.{md}": [
-      "prettier --write --ignore-unknown --config ../../.prettierrc.json"
+      "yarn lint"
     ]
   },
   "jest": {

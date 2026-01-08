@@ -1,7 +1,6 @@
 /*
  * © 2021 Thoughtworks, Inc.
  */
-import moment from 'moment'
 import { Athena } from 'aws-sdk'
 import {
   GetQueryExecutionInput,
@@ -10,28 +9,29 @@ import {
   StartQueryExecutionInput,
   StartQueryExecutionOutput,
 } from 'aws-sdk/clients/athena'
+import moment from 'moment'
 
 import {
+  AccountDetails,
+  AccountDetailsOrIdList,
+  buildAccountFilter,
   configLoader,
   convertBytesToTerabytes,
   convertGigabyteHoursToTerabyteHours,
   convertGigabyteMonthsToTerabyteHours,
   endsWithAny,
   EstimationResult,
+  getEmissionsFactors,
+  GroupBy,
+  Logger,
   LookupTableInput,
   LookupTableOutput,
-  Logger,
   wait,
-  GroupBy,
-  getEmissionsFactors,
-  AccountDetailsOrIdList,
-  buildAccountFilter,
-  AccountDetails,
 } from '@cloud-carbon-footprint/common'
 
 import {
-  AccumulateKilowattHoursBy,
   accumulateKilowattHours,
+  AccumulateKilowattHoursBy,
   appendOrAccumulateEstimatesByDay,
   CloudConstants,
   CloudConstantsEmissionsFactors,
@@ -49,7 +49,7 @@ import {
   UnknownUsage,
 } from '@cloud-carbon-footprint/core'
 
-import { ServiceWrapper } from './ServiceWrapper'
+import CostAndUsageReportsRow from './CostAndUsageReportsRow'
 import {
   AWS_QUERY_GROUP_BY,
   BYTE_HOURS_USAGE_TYPES,
@@ -62,19 +62,25 @@ import {
   UNKNOWN_USAGE_TYPES,
   UNSUPPORTED_USAGE_TYPES,
 } from './CostAndUsageTypes'
-import CostAndUsageReportsRow from './CostAndUsageReportsRow'
+import { ServiceWrapper } from './ServiceWrapper'
 
 import {
   AWS_CLOUD_CONSTANTS,
   AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
 } from '../domain'
 import AWSComputeEstimatesBuilder from './AWSComputeEstimatesBuilder'
-import AWSMemoryEstimatesBuilder from './AWSMemoryEstimatesBuilder'
 import {
   EC2_INSTANCE_TYPES,
   INSTANCE_FAMILY_TO_INSTANCE_TYPE_MAPPING,
 } from './AWSInstanceTypes'
+import AWSMemoryEstimatesBuilder from './AWSMemoryEstimatesBuilder'
 import { AWS_MAPPED_REGIONS_TO_ELECTRICITY_MAPS_ZONES } from './AWSRegions'
+
+export interface AthenaConfig {
+  dataBaseName: string
+  tableName: string
+  queryResultsLocation: string
+}
 
 export default class CostAndUsageReports {
   private readonly dataBaseName: string
@@ -91,10 +97,16 @@ export default class CostAndUsageReports {
     private readonly unknownEstimator: UnknownEstimator,
     private readonly embodiedEmissionsEstimator: EmbodiedEmissionsEstimator,
     private readonly serviceWrapper?: ServiceWrapper,
+    athenaConfig?: AthenaConfig,
   ) {
-    this.dataBaseName = configLoader().AWS.ATHENA_DB_NAME
-    this.tableName = configLoader().AWS.ATHENA_DB_TABLE
-    this.queryResultsLocation = configLoader().AWS.ATHENA_QUERY_RESULT_LOCATION
+    // Use provided athenaConfig or fall back to global config for backward compatibility
+    this.dataBaseName =
+      athenaConfig?.dataBaseName || configLoader().AWS.ATHENA_DB_NAME
+    this.tableName =
+      athenaConfig?.tableName || configLoader().AWS.ATHENA_DB_TABLE
+    this.queryResultsLocation =
+      athenaConfig?.queryResultsLocation ||
+      configLoader().AWS.ATHENA_QUERY_RESULT_LOCATION
     this.costAndUsageReportsLogger = new Logger('CostAndUsageReports')
   }
 
@@ -685,7 +697,7 @@ export default class CostAndUsageReports {
       const queryExecutionResults: GetQueryExecutionOutput =
         await this.serviceWrapper.getAthenaQueryExecution(queryExecutionInput)
       const queryStatus = queryExecutionResults.QueryExecution.Status
-      if (queryStatus.State === ('FAILED' || 'CANCELLED'))
+      if (queryStatus.State === 'FAILED' || queryStatus.State === 'CANCELLED')
         throw new Error(
           `Athena query failed. Reason ${queryStatus.StateChangeReason}. Query ID: ${queryExecutionInput.QueryExecutionId}`,
         )

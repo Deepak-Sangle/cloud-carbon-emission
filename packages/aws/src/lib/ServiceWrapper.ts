@@ -2,6 +2,7 @@
  * © 2021 Thoughtworks, Inc.
  */
 
+import { PartialDataError } from '@cloud-carbon-footprint/common'
 import {
   Athena,
   CloudWatch,
@@ -10,21 +11,20 @@ import {
   Glue,
   S3,
 } from 'aws-sdk'
-import csv from 'csvtojson'
-import { path } from 'ramda'
+import {
+  GetMetricDataInput,
+  GetMetricDataOutput,
+  MetricDataResult,
+} from 'aws-sdk/clients/cloudwatch'
 import {
   GetCostAndUsageRequest,
   GetCostAndUsageResponse,
   GetRightsizingRecommendationRequest,
   GetRightsizingRecommendationResponse,
 } from 'aws-sdk/clients/costexplorer'
-import {
-  GetMetricDataInput,
-  GetMetricDataOutput,
-  MetricDataResult,
-} from 'aws-sdk/clients/cloudwatch'
-import { PartialDataError } from '@cloud-carbon-footprint/common'
 import { ListObjectsV2Output } from 'aws-sdk/clients/s3'
+import csv from 'csvtojson'
+import { path } from 'ramda'
 import { EC2ComputeOptimizerRecommendationData } from './Recommendations/ComputeOptimizer'
 
 export class ServiceWrapper {
@@ -87,11 +87,9 @@ export class ServiceWrapper {
 
     while (endCopy < end) {
       promiseArray.push(func(startCopy, endCopy, ...args))
-      startCopy = new Date(
-        new Date(startCopy).setDate(start.getDate() + intervalInDays),
-      )
+      startCopy = new Date(endCopy)
       endCopy = new Date(
-        new Date(startCopy).setDate(start.getDate() + intervalInDays),
+        new Date(startCopy).setDate(startCopy.getDate() + intervalInDays),
       )
     }
     promiseArray.push(func(startCopy, end, ...args))
