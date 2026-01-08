@@ -58,7 +58,7 @@
   },
   "dependencies": {
     "@google-cloud/logging-winston": "^4.1.1",
-    "dotenv": "^16.0.0",
+    "dotenv": "^17.2.3",
     "kysely": "^0.27.4",
     "moment": "^2.29.1",
     "node-fetch": "^2.6.1",
