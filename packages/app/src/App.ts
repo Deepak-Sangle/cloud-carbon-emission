@@ -127,7 +127,6 @@ export default class App {
     const config = configLoader()
     includeCloudProviders(cloudProviderToSeed, config)
     const { AWS, GCP, AZURE, ALI } = config
-    appLogger.info(`Using config: ${JSON.stringify(config, null, 2)}`)
     if (configLoader().ELECTRICITY_MAPS_TOKEN)
       appLogger.info('Using Electricity Maps')
     if (process.env.TEST_MODE) {

@@ -5,7 +5,7 @@ export {
   getDatabase,
   getDatabaseInstance,
   isDatabaseConnected,
-} from './connection'
+} from "./connection";
 
 // Database types
 export {
@@ -17,26 +17,15 @@ export {
   // CloudConnection
   CloudConnectionTable,
   CloudConnectionUpdate,
-  CloudEmbodiedMetrics,
-  // CloudEmbodiedMetrics
-  CloudEmbodiedMetricsTable,
-  CloudEmbodiedMetricsUpdate,
-  CloudOperationalMetrics,
-  // CloudOperationalMetrics (CloudUsageData)
-  CloudOperationalMetricsTable,
-  CloudOperationalMetricsUpdate,
+  CloudFootprint,
+  // CloudFootprint
+  CloudFootprintTable,
+  CloudFootprintUpdate,
   // Enums
   CloudProvider,
-  CloudService,
-  CloudServiceSource,
-  // CloudService
-  CloudServiceTable,
-  CloudServiceUpdate,
   // Full Database Schema
   Database,
   NewAuditLog,
   NewCloudConnection,
-  NewCloudEmbodiedMetrics,
-  NewCloudOperationalMetrics,
-  NewCloudService,
-} from './types'
+  NewCloudFootprint,
+} from "./types";
