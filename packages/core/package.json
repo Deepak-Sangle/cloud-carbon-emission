@@ -4,7 +4,6 @@
   "license": "Apache-2.0",
   "description": "The core logic to get cloud usage data and estimate energy and carbon emissions.",
   "main": "src/index.ts",
-  "types": "src/index.d.ts",
   "publishConfig": {
     "main": "dist/index.js"
   },
