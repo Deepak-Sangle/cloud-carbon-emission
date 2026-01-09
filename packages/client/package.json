@@ -3,7 +3,7 @@
   "version": "4.2.4",
   "license": "Apache-2.0",
   "description": "The front-end dashboard for Cloud Carbon Footprint.",
-  "main": "src/index.tsx",
+  "main": "dist/lib.js",
   "publishConfig": {
     "main": "dist/lib.js",
     "types": "dist/lib.d.ts"
@@ -134,5 +134,6 @@
       "<rootDir>/src/.*/index.ts",
       "<rootDir>/src/Root.ts"
     ]
-  }
+  },
+  "types": "dist/lib.d.ts"
 }

@@ -27,4 +27,5 @@ async function run() {
   }
 }
 
-run()
+// this modifies the package.json file, so we don't want to run it in the build process
+// run()

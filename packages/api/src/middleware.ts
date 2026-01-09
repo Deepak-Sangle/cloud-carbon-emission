@@ -190,6 +190,10 @@ export const FootprintSyncApiMiddleware = async function (
   req: express.Request,
   res: express.Response
 ): Promise<void> {
+  apiLogger.info(`Footprint Sync API request started`);
+  apiLogger.info(`Request body: ${JSON.stringify(req.body)}`);
+  apiLogger.info(`Request query: ${JSON.stringify(req.query)}`);
+
   // Set the request time out to 10 minutes to allow the request enough time to complete.
   req.socket.setTimeout(1000 * 60 * 10);
 
@@ -200,7 +204,7 @@ export const FootprintSyncApiMiddleware = async function (
   if (!cloudConnectionId) {
     apiLogger.error(
       `cloudConnectionId is required for footprint-sync endpoint`,
-      null
+      new Error("cloudConnectionId is required")
     );
     res.status(400).send("cloudConnectionId is required");
     return;

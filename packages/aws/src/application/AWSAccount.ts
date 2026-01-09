@@ -10,8 +10,8 @@ import {
   Credentials,
   Glue,
   S3 as S3Service,
-} from 'aws-sdk'
-import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
+} from "aws-sdk";
+import { ServiceConfigurationOptions } from "aws-sdk/lib/service";
 
 import {
   AWS_RECOMMENDATIONS_TARGETS,
@@ -21,7 +21,7 @@ import {
   LookupTableInput,
   LookupTableOutput,
   RecommendationResult,
-} from '@cloud-carbon-footprint/common'
+} from "@cloud-carbon-footprint/common";
 import {
   CloudProviderAccount,
   ComputeEstimator,
@@ -32,7 +32,7 @@ import {
   Region,
   StorageEstimator,
   UnknownEstimator,
-} from '@cloud-carbon-footprint/core'
+} from "@cloud-carbon-footprint/core";
 
 import {
   AthenaConfig,
@@ -46,105 +46,120 @@ import {
   RDSStorage,
   S3,
   ServiceWrapper,
-} from '../lib'
+} from "../lib";
 
-import AWSCredentialsProvider from './AWSCredentialsProvider'
+import AWSCredentialsProvider from "./AWSCredentialsProvider";
 
 import {
   AWS_CLOUD_CONSTANTS,
   AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
-} from '../domain'
-import { Recommendations } from '../lib/Recommendations'
+} from "../domain";
+import { Recommendations } from "../lib/Recommendations";
 
 export default class AWSAccount extends CloudProviderAccount {
-  private readonly credentials: Credentials
-  private readonly athenaConfig?: AthenaConfig
+  private readonly credentials: Credentials;
+  private readonly athenaConfig?: AthenaConfig;
 
   constructor(
     public id: string,
     public name: string,
     private regions: string[],
-    athenaConfig?: AthenaConfig,
+    athenaConfig?: AthenaConfig
   ) {
-    super()
-    this.credentials = AWSCredentialsProvider.create(id)
-    this.athenaConfig = athenaConfig
+    super();
+    this.credentials = AWSCredentialsProvider.create(id);
+    this.athenaConfig = athenaConfig;
   }
 
   async getDataForRegions(
     startDate: Date,
     endDate: Date,
-    grouping: GroupBy,
+    grouping: GroupBy
   ): Promise<EstimationResult[]> {
-    const results: EstimationResult[][] = []
+    const results: EstimationResult[][] = [];
     for (const regionId of this.regions) {
-      const regionEstimates: EstimationResult[] = await Promise.all(
-        await this.getDataForRegion(regionId, startDate, endDate, grouping),
-      )
-      results.push(regionEstimates)
+      // break the start and enddate in 30 days chunks (so if a year is given it makes 12 requests)
+      // and process them in series
+      let chunkStart = new Date(startDate)
+      let chunkEnd = new Date(chunkStart)
+      const finalEnd = new Date(endDate)
+
+      while (chunkStart < finalEnd) {
+        chunkEnd = new Date(chunkStart)
+        chunkEnd.setDate(chunkEnd.getDate() + 30)
+        if (chunkEnd > finalEnd) chunkEnd = new Date(finalEnd)
+        const regionEstimates: EstimationResult[] = await this.getDataForRegion(
+          regionId,
+          chunkStart,
+          chunkEnd,
+          grouping
+        );
+        results.push(regionEstimates)
+        chunkStart = new Date(chunkEnd)
+      }
     }
 
-    return results.flat()
+    return results.flat();
   }
 
   getDataForRegion(
     regionId: string,
     startDate: Date,
     endDate: Date,
-    grouping: GroupBy,
+    grouping: GroupBy
   ): Promise<EstimationResult[]> {
-    const awsServices = this.getServices(regionId)
+    const awsServices = this.getServices(regionId);
     const awsConstants = {
       minWatts: AWS_CLOUD_CONSTANTS.MIN_WATTS_AVG,
       maxWatts: AWS_CLOUD_CONSTANTS.MAX_WATTS_AVG,
       powerUsageEffectiveness: AWS_CLOUD_CONSTANTS.getPUE(),
-    }
+    };
     const region = new Region(
       regionId,
       awsServices,
       AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
-      awsConstants,
-    )
+      awsConstants
+    );
     return this.getRegionData(
       configLoader().AWS.NAME,
       region,
       startDate,
       endDate,
-      grouping,
-    )
+      grouping
+    );
   }
 
   getServices(regionId: string): ICloudService[] {
     return configLoader().AWS.CURRENT_SERVICES.map(({ key }) => {
-      return this.getService(key, regionId, this.credentials)
-    })
+      return this.getService(key, regionId, this.credentials);
+    });
   }
 
   async getDataForRecommendations(
-    recommendationTarget: AWS_RECOMMENDATIONS_TARGETS,
+    recommendationTarget: AWS_RECOMMENDATIONS_TARGETS
   ): Promise<RecommendationResult[]> {
     const serviceWrapper = this.createServiceWrapper(
       this.getServiceConfigurationOptions(
         configLoader().AWS.ATHENA_REGION,
-        this.credentials,
-      ),
-    )
+        this.credentials
+      )
+    );
 
     return await Recommendations.getRecommendations(
       recommendationTarget,
-      serviceWrapper,
-    )
+      serviceWrapper
+    );
   }
 
   async getDataFromCostAndUsageReports(
     startDate: Date,
     endDate: Date,
-    grouping: GroupBy,
+    grouping: GroupBy
   ): Promise<EstimationResult[]> {
     // Use athenaConfig region if available, otherwise fall back to global config
     const athenaRegion = this.athenaConfig
       ? this.regions[0] // For billing accounts, region is passed via constructor
-      : configLoader().AWS.ATHENA_REGION
+      : configLoader().AWS.ATHENA_REGION;
 
     const costAndUsageReportsService = new CostAndUsageReports(
       new ComputeEstimator(),
@@ -154,22 +169,22 @@ export default class AWSAccount extends CloudProviderAccount {
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
       new UnknownEstimator(AWS_CLOUD_CONSTANTS.ESTIMATE_UNKNOWN_USAGE_BY),
       new EmbodiedEmissionsEstimator(
-        AWS_CLOUD_CONSTANTS.SERVER_EXPECTED_LIFESPAN,
+        AWS_CLOUD_CONSTANTS.SERVER_EXPECTED_LIFESPAN
       ),
       this.createServiceWrapper(
-        this.getServiceConfigurationOptions(athenaRegion, this.credentials),
+        this.getServiceConfigurationOptions(athenaRegion, this.credentials)
       ),
-      this.athenaConfig,
-    )
+      this.athenaConfig
+    );
     return await costAndUsageReportsService.getEstimates(
       startDate,
       endDate,
-      grouping,
-    )
+      grouping
+    );
   }
 
   static async getCostAndUsageReportsDataFromInputData(
-    inputData: LookupTableInput[],
+    inputData: LookupTableInput[]
   ): Promise<LookupTableOutput[]> {
     const costAndUsageReportsService = new CostAndUsageReports(
       new ComputeEstimator(),
@@ -179,31 +194,33 @@ export default class AWSAccount extends CloudProviderAccount {
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
       new UnknownEstimator(AWS_CLOUD_CONSTANTS.ESTIMATE_UNKNOWN_USAGE_BY),
       new EmbodiedEmissionsEstimator(
-        AWS_CLOUD_CONSTANTS.SERVER_EXPECTED_LIFESPAN,
-      ),
-    )
-    return await costAndUsageReportsService.getEstimatesFromInputData(inputData)
+        AWS_CLOUD_CONSTANTS.SERVER_EXPECTED_LIFESPAN
+      )
+    );
+    return await costAndUsageReportsService.getEstimatesFromInputData(
+      inputData
+    );
   }
 
   private getService(
     key: string,
     region: string,
-    credentials: Credentials,
+    credentials: Credentials
   ): ICloudService {
     if (this.services[key] === undefined)
-      throw new Error('Unsupported service: ' + key)
-    const options = this.getServiceConfigurationOptions(region, credentials)
-    return this.services[key](options)
+      throw new Error("Unsupported service: " + key);
+    const options = this.getServiceConfigurationOptions(region, credentials);
+    return this.services[key](options);
   }
 
   private getServiceConfigurationOptions(
     region: string,
-    credentials: Credentials,
+    credentials: Credentials
   ): ServiceConfigurationOptions {
     return {
       region: region,
       credentials: credentials,
-    }
+    };
   }
 
   private createServiceWrapper(options: ServiceConfigurationOptions) {
@@ -212,39 +229,39 @@ export default class AWSAccount extends CloudProviderAccount {
       new CloudWatchLogs(options),
       new CostExplorer({
         region: configLoader().AWS.IS_AWS_GLOBAL
-          ? 'us-east-1'
-          : 'cn-northwest-1',
+          ? "us-east-1"
+          : "cn-northwest-1",
         credentials: options.credentials,
       }),
       new S3Service(options),
       new Athena(options),
-      new Glue(options),
-    )
+      new Glue(options)
+    );
   }
 
   private services: {
-    [id: string]: (options: ServiceConfigurationOptions) => ICloudService
+    [id: string]: (options: ServiceConfigurationOptions) => ICloudService;
   } = {
     ebs: (options) => {
-      return new EBS(this.createServiceWrapper(options))
+      return new EBS(this.createServiceWrapper(options));
     },
     s3: (options) => {
-      return new S3(this.createServiceWrapper(options))
+      return new S3(this.createServiceWrapper(options));
     },
     ec2: (options) => {
-      return new EC2(this.createServiceWrapper(options))
+      return new EC2(this.createServiceWrapper(options));
     },
     elasticache: (options) => {
-      return new ElastiCache(this.createServiceWrapper(options))
+      return new ElastiCache(this.createServiceWrapper(options));
     },
     rds: (options) => {
       return new RDS(
         new RDSComputeService(this.createServiceWrapper(options)),
-        new RDSStorage(this.createServiceWrapper(options)),
-      )
+        new RDSStorage(this.createServiceWrapper(options))
+      );
     },
     lambda: (options) => {
-      return new Lambda(120000, 1000, this.createServiceWrapper(options))
+      return new Lambda(120000, 1000, this.createServiceWrapper(options));
     },
-  }
+  };
 }

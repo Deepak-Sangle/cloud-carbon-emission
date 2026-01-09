@@ -16,6 +16,7 @@ import auth from "./utils/auth";
 import swaggerDocs from "./utils/swagger";
 
 const port = process.env.PORT || 4000;
+const host = process.env.HOST || "127.0.0.1";
 const httpApp = express();
 const serverLogger = new Logger("Server");
 
@@ -43,7 +44,7 @@ if (process.env.ENABLE_CORS) {
 
 httpApp.use("/api", createRouter());
 
-httpApp.listen(Number(port), "0.0.0.0", () => {
+httpApp.listen(Number(port), host, () => {
   serverLogger.info(
     `Cloud Carbon Footprint Server listening at http://0.0.0.0:${port}`
   );

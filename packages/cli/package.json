@@ -3,7 +3,7 @@
   "version": "1.13.0",
   "license": "Apache-2.0",
   "description": "Command Line Interface as an entrypoint to get cloud energy and carbon emissions.",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "publishConfig": {
     "main": "dist/index.js"
   },
