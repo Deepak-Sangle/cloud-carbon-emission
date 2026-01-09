@@ -210,10 +210,14 @@ export const FootprintSyncApiMiddleware = async function (
     return;
   }
 
-  const startDate = req.query.start?.toString();
-  const endDate = req.query.end?.toString();
+  const startDate = req.query.startDate?.toString();
+  const endDate = req.query.endDate?.toString();
 
   if (!startDate || !endDate) {
+    apiLogger.error(
+      "start and end dates are required",
+      new Error("start and end dates are required")
+    );
     res.status(400).send("start and end dates are required");
     return;
   }

@@ -18,6 +18,7 @@ import {
   configLoader,
   EstimationResult,
   GroupBy,
+  Logger,
   LookupTableInput,
   LookupTableOutput,
   RecommendationResult,
@@ -60,6 +61,7 @@ export default class AWSAccount extends CloudProviderAccount {
   private readonly credentials: Credentials;
   private readonly athenaConfig?: AthenaConfig;
 
+  private readonly logger: Logger;
   constructor(
     public id: string,
     public name: string,
@@ -67,6 +69,7 @@ export default class AWSAccount extends CloudProviderAccount {
     athenaConfig?: AthenaConfig
   ) {
     super();
+    this.logger = new Logger(`AWSAccount-${id}`);
     this.credentials = AWSCredentialsProvider.create(id);
     this.athenaConfig = athenaConfig;
   }
@@ -79,23 +82,41 @@ export default class AWSAccount extends CloudProviderAccount {
     const results: EstimationResult[][] = [];
     for (const regionId of this.regions) {
       // break the start and enddate in 30 days chunks (so if a year is given it makes 12 requests)
-      // and process them in series
-      let chunkStart = new Date(startDate)
-      let chunkEnd = new Date(chunkStart)
-      const finalEnd = new Date(endDate)
+      // process them in reverse order (from end to start) to get recent data first
+      let chunkEnd = new Date(endDate);
+      let chunkStart = new Date(chunkEnd);
+      const finalStart = new Date(startDate);
 
-      while (chunkStart < finalEnd) {
-        chunkEnd = new Date(chunkStart)
-        chunkEnd.setDate(chunkEnd.getDate() + 30)
-        if (chunkEnd > finalEnd) chunkEnd = new Date(finalEnd)
-        const regionEstimates: EstimationResult[] = await this.getDataForRegion(
-          regionId,
-          chunkStart,
-          chunkEnd,
-          grouping
-        );
-        results.push(regionEstimates)
-        chunkStart = new Date(chunkEnd)
+      while (chunkEnd > finalStart) {
+        chunkStart = new Date(chunkEnd);
+        chunkStart.setDate(chunkStart.getDate() - 30);
+        if (chunkStart < finalStart) chunkStart = new Date(finalStart);
+
+        try {
+          this.logger.info(
+            `Getting data for region ${regionId} from ${chunkStart} to ${chunkEnd}`
+          );
+          const regionEstimates: EstimationResult[] =
+            await this.getDataForRegion(
+              regionId,
+              chunkStart,
+              chunkEnd,
+              grouping
+            );
+          this.logger.info(
+            `Got ${regionEstimates.length} estimates for region ${regionId} from ${chunkStart} to ${chunkEnd}`
+          );
+          results.push(regionEstimates);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to get data for region ${regionId} from ${chunkStart} to ${chunkEnd}: ${error.message}`
+          );
+          // This most probably means that we can't access data that old
+          // so we break the loop
+          break;
+        }
+
+        chunkEnd = new Date(chunkStart);
       }
     }
 

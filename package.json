@@ -32,6 +32,7 @@
     ]
   },
   "scripts": {
+    "build": "lerna run build --stream",
     "clean": "lerna run clean",
     "lint": "lerna run lint",
     "start": "concurrently \"yarn start-client\" \"yarn start-api\"",
