@@ -4,6 +4,7 @@
   "license": "Apache-2.0",
   "description": "Common functionality to be shared among other cloud carbon footprint packages",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "publishConfig": {
     "main": "dist/index.js"
   },

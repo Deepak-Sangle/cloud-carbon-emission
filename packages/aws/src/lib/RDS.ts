@@ -2,24 +2,24 @@
  * © 2021 Thoughtworks, Inc.
  */
 
-import moment from 'moment'
-import { reduceBy, concat } from 'ramda'
 import {
-  ICloudService,
-  FootprintEstimate,
-  Cost,
-  CloudConstantsEmissionsFactors,
   CloudConstants,
-} from '@cloud-carbon-footprint/core'
-import RDSComputeService from './RDSCompute'
-import RDSStorage from './RDSStorage'
+  CloudConstantsEmissionsFactors,
+  Cost,
+  FootprintEstimate,
+  ICloudService,
+} from "@cloud-carbon-footprint/core";
+import moment from "moment";
+import { concat, reduceBy } from "ramda";
+import RDSComputeService from "./RDSCompute";
+import RDSStorage from "./RDSStorage";
 
 export default class RDS implements ICloudService {
-  serviceName = 'RDS'
+  serviceName = "RDS";
 
   constructor(
     private rdsComputeService: RDSComputeService,
-    private rdsStorageService: RDSStorage,
+    private rdsStorageService: RDSStorage
   ) {}
 
   async getEstimates(
@@ -27,87 +27,103 @@ export default class RDS implements ICloudService {
     end: Date,
     region: string,
     emissionsFactors: CloudConstantsEmissionsFactors,
-    constants: CloudConstants,
+    constants: CloudConstants
   ): Promise<FootprintEstimate[]> {
     const rdsComputeEstimates = this.rdsComputeService.getEstimates(
       start,
       end,
       region,
       emissionsFactors,
-      constants,
-    )
+      constants
+    );
     const rdsStorageEstimates = this.rdsStorageService.getEstimates(
       start,
       end,
       region,
       emissionsFactors,
-      constants,
-    )
+      constants
+    );
     const resolvedEstimates: FootprintEstimate[][] = await Promise.all([
       rdsComputeEstimates,
       rdsStorageEstimates,
-    ])
-    const combinedEstimates: FootprintEstimate[] = resolvedEstimates.flat()
+    ]);
+    const combinedEstimates: FootprintEstimate[] = resolvedEstimates.flat();
 
     interface CalculatedFootprintEstimate {
-      timestamp: Date
-      co2e: number
-      kilowattHours: number
+      timestamp: Date;
+      co2e: number;
+      kilowattHours: number;
     }
 
-    const result: { [key: number]: CalculatedFootprintEstimate } = {}
+    const result: { [key: number]: CalculatedFootprintEstimate } = {};
 
     combinedEstimates.forEach((estimate) => {
-      const timestamp: number = estimate.timestamp.getTime()
+      const timestamp: number = estimate.timestamp.getTime();
       if (result[timestamp]) {
-        result[timestamp].co2e += estimate.co2e
-        result[timestamp].kilowattHours += estimate.kilowattHours
+        result[timestamp].co2e += estimate.co2e;
+        result[timestamp].kilowattHours += estimate.kilowattHours;
       } else {
         result[timestamp] = {
           timestamp: estimate.timestamp,
           co2e: estimate.co2e,
           kilowattHours: estimate.kilowattHours,
-        }
+        };
       }
-    })
+    });
 
-    return Object.values(result)
+    return Object.values(result);
   }
 
   async getCosts(start: Date, end: Date, region: string): Promise<Cost[]> {
     const rdsComputeCosts = await this.rdsComputeService.getCosts(
       start,
       end,
-      region,
-    )
+      region
+    );
     const rdsStorageCosts = await this.rdsStorageService.getCosts(
       start,
       end,
-      region,
-    )
+      region
+    );
 
-    const rdsCosts = concat(rdsComputeCosts, rdsStorageCosts)
+    const rdsCosts = concat(rdsComputeCosts, rdsStorageCosts);
 
     const groupingFn = (cost: Cost) => {
-      return moment(cost.timestamp).utc().format('YYYY-MM-DD')
-    }
+      return moment(cost.timestamp).utc().format("YYYY-MM-DD");
+    };
 
     const accumulatingFn = (accumulator: Cost, cost: Cost): Cost => {
       accumulator.timestamp =
         accumulator.timestamp ||
-        new Date(moment(cost.timestamp).utc().format('YYYY-MM-DD'))
-      accumulator.amount += cost.amount
-      accumulator.currency = cost.currency || 'USD'
-      return accumulator
-    }
+        new Date(moment(cost.timestamp).utc().format("YYYY-MM-DD"));
+      accumulator.amount += cost.amount;
+      accumulator.currency = cost.currency || "USD";
+      return accumulator;
+    };
 
     return Object.values(
       reduceBy(
         accumulatingFn,
         { amount: 0, currency: undefined, timestamp: undefined },
         groupingFn,
-        rdsCosts,
-      ),
-    )
+        rdsCosts
+      )
+    );
+  }
+
+  /**
+   * Get embodied carbon metrics for RDS
+   *
+   * Currently only returns embodied metrics for RDS storage, as OxygenIT API
+   * does not provide a separate endpoint for RDS compute instances.
+   *
+   * @param start - Start date for the query
+   * @param end - End date for the query
+   * @param region - AWS region ID
+   * @returns Aggregated embodied metrics for RDS storage by region and day
+   */
+  async getEmbodiedMetrics(start: Date, end: Date, region: string) {
+    // OxygenIT only provides RDS storage embodied metrics, not compute
+    return await this.rdsStorageService.getEmbodiedMetrics(start, end, region);
   }
 }

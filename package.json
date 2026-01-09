@@ -32,7 +32,7 @@
     ]
   },
   "scripts": {
-    "build": "lerna run build --stream",
+    "build": "cd packages/common && yarn build && cd ../core && yarn build && cd ../aws && yarn build && cd ../api && yarn build && cd ../app && yarn build",
     "clean": "lerna run clean",
     "lint": "lerna run lint",
     "start": "concurrently \"yarn start-client\" \"yarn start-api\"",

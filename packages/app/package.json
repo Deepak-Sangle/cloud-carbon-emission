@@ -4,6 +4,7 @@
   "license": "Apache-2.0",
   "description": "The logic to bootstrap the cloud-carbon-footprint server-side application",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "publishConfig": {
     "main": "dist/index.js"
   },

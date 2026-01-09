@@ -34,6 +34,7 @@ export interface AuditLogTable {
   loanId: string | null;
   kpiId: string | null;
   kpiResultId: string | null;
+  organizationId: string | null;
   cloudConnectionId: string | null;
   createdAt: ColumnType<Date, Date | undefined, never>;
 }
@@ -49,10 +50,11 @@ export interface CloudFootprintTable {
   periodStartDate: Date;
   periodEndDate: Date;
   cloudProvider: string;
-  kilowattHours: number;
+  kilowattHours: number | null;
   co2e: number;
   cost: number;
-  accountId: string;
+  type: "OPERATIONAL_METRICS" | "EMBODIED_METRICS";
+  serviceType: string | null;
   serviceName: string;
   region: string;
   tags: string | null;

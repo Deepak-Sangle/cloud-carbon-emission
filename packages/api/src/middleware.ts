@@ -97,6 +97,7 @@ export const FootprintApiMiddleware = async function (
 
   // Apply the merged config
   setConfig(mergedConfig);
+  apiLogger.info(`mergedConfig: ${JSON.stringify(mergedConfig, null, 2)}`);
 
   const footprintApp = new App();
   try {
@@ -212,6 +213,16 @@ export const FootprintSyncApiMiddleware = async function (
 
   const startDate = req.query.startDate?.toString();
   const endDate = req.query.endDate?.toString();
+  const organizationId = req.body?.organizationId?.toString();
+
+  if (!organizationId) {
+    apiLogger.error(
+      "organizationId is required",
+      new Error("organizationId is required")
+    );
+    res.status(400).send("organizationId is required");
+    return;
+  }
 
   if (!startDate || !endDate) {
     apiLogger.error(
@@ -234,6 +245,7 @@ export const FootprintSyncApiMiddleware = async function (
       cloudConnectionId,
       startDate,
       endDate,
+      organizationId,
       overrideConfig
     );
 

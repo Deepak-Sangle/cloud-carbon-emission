@@ -145,13 +145,13 @@ export const createRouter = (config?: CCFConfig) => {
    *     produces:
    *       - application/json
    *     parameters:
-   *      - name: start
+   *      - name: startDate
    *        in: query
    *        description: The start date for the footprint; e.g. 2022-10-18
    *        schema:
    *          type: string
    *        required: true
-   *      - name: end
+   *      - name: endDate
    *        in: query
    *        schema:
    *          type: string

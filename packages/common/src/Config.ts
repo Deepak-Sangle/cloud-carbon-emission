@@ -10,89 +10,91 @@ dotenv.config()
 
 export interface CCFConfig {
   AWS?: {
-    INCLUDE_ESTIMATES?: boolean
-    USE_BILLING_DATA?: boolean
-    BILLING_ACCOUNT_ID?: string
-    BILLING_ACCOUNT_NAME?: string
-    ATHENA_DB_NAME?: string
-    ATHENA_DB_TABLE?: string
-    ATHENA_QUERY_RESULT_LOCATION?: string
-    ATHENA_REGION?: string
-    IS_AWS_GLOBAL?: boolean
-    NAME?: string
-    RECOMMENDATIONS_SERVICE?: AWS_RECOMMENDATIONS_SERVICES
-    COMPUTE_OPTIMIZER_BUCKET?: string
-    CURRENT_SERVICES?: { key: string; name: string }[]
-    CURRENT_REGIONS?: string[]
-    RESOURCE_TAG_NAMES?: string[]
-    accounts?: AccountDetailsOrIdList
-    billingAccounts?: AWSBillingAccountConfig[]
+    INCLUDE_EMBODIED_METRICS: boolean;
+    INCLUDE_ESTIMATES?: boolean;
+    INCLUDE_OPERATIONAL_METRICS: boolean;
+    USE_BILLING_DATA?: boolean;
+    BILLING_ACCOUNT_ID?: string;
+    BILLING_ACCOUNT_NAME?: string;
+    ATHENA_DB_NAME?: string;
+    ATHENA_DB_TABLE?: string;
+    ATHENA_QUERY_RESULT_LOCATION?: string;
+    ATHENA_REGION?: string;
+    IS_AWS_GLOBAL?: boolean;
+    NAME?: string;
+    RECOMMENDATIONS_SERVICE?: AWS_RECOMMENDATIONS_SERVICES;
+    COMPUTE_OPTIMIZER_BUCKET?: string;
+    CURRENT_SERVICES?: { key: string; name: string }[];
+    CURRENT_REGIONS?: string[];
+    RESOURCE_TAG_NAMES?: string[];
+    accounts?: AccountDetailsOrIdList;
+    billingAccounts?: AWSBillingAccountConfig[];
     authentication?: {
-      mode: string
-      options?: Record<string, string>
-    }
-  }
+      mode: string;
+      options?: Record<string, string>;
+    };
+  };
   GCP?: {
-    NAME?: string
-    CURRENT_SERVICES?: { key: string; name: string }[]
-    CURRENT_REGIONS?: string[]
-    projects?: AccountDetailsOrIdList
-    USE_CARBON_FREE_ENERGY_PERCENTAGE?: boolean
-    INCLUDE_ESTIMATES?: boolean
-    USE_BILLING_DATA?: boolean
-    BIG_QUERY_TABLE?: string
-    BILLING_PROJECT_ID?: string
-    BILLING_PROJECT_NAME?: string
-    CACHE_BUCKET_NAME?: string
-    VCPUS_PER_CLOUD_COMPOSER_ENVIRONMENT?: number
-    VCPUS_PER_GKE_CLUSTER?: number
-    RESOURCE_TAG_NAMES?: string[]
-  }
+    NAME?: string;
+    CURRENT_SERVICES?: { key: string; name: string }[];
+    CURRENT_REGIONS?: string[];
+    projects?: AccountDetailsOrIdList;
+    USE_CARBON_FREE_ENERGY_PERCENTAGE?: boolean;
+    INCLUDE_ESTIMATES?: boolean;
+    USE_BILLING_DATA?: boolean;
+    BIG_QUERY_TABLE?: string;
+    BILLING_PROJECT_ID?: string;
+    BILLING_PROJECT_NAME?: string;
+    CACHE_BUCKET_NAME?: string;
+    VCPUS_PER_CLOUD_COMPOSER_ENVIRONMENT?: number;
+    VCPUS_PER_GKE_CLUSTER?: number;
+    RESOURCE_TAG_NAMES?: string[];
+  };
   AZURE?: {
-    INCLUDE_ESTIMATES?: boolean
-    USE_BILLING_DATA?: boolean
+    INCLUDE_ESTIMATES?: boolean;
+    USE_BILLING_DATA?: boolean;
     authentication?: {
-      mode: string
-      clientId?: string
-      clientSecret?: string
-      certificatePath?: string
-      tenantId?: string
-    }
-    RESOURCE_TAG_NAMES?: string[]
-    CONSUMPTION_CHUNKS_DAYS?: number
-    SUBSCRIPTION_CHUNKS?: number
-    SUBSCRIPTIONS: string[]
-  }
+      mode: string;
+      clientId?: string;
+      clientSecret?: string;
+      certificatePath?: string;
+      tenantId?: string;
+    };
+    RESOURCE_TAG_NAMES?: string[];
+    CONSUMPTION_CHUNKS_DAYS?: number;
+    SUBSCRIPTION_CHUNKS?: number;
+    SUBSCRIPTIONS: string[];
+  };
   ALI?: {
-    NAME?: string
-    INCLUDE_ESTIMATES?: boolean
+    NAME?: string;
+    INCLUDE_ESTIMATES?: boolean;
     authentication?: {
-      accessKeyId: string
-      accessKeySecret: string
-    }
-  }
-  LOGGING_MODE?: string
-  CACHE_MODE?: string
+      accessKeyId: string;
+      accessKeySecret: string;
+    };
+  };
+  LOGGING_MODE?: string;
+  CACHE_MODE?: string;
   ON_PREMISE?: {
     SERVER?: {
-      CPU_UTILIZATION?: number
-      AVERAGE_WATTS?: number
-    }
+      CPU_UTILIZATION?: number;
+      AVERAGE_WATTS?: number;
+    };
     LAPTOP?: {
-      CPU_UTILIZATION?: number
-      AVERAGE_WATTS?: number
-    }
+      CPU_UTILIZATION?: number;
+      AVERAGE_WATTS?: number;
+    };
     DESKTOP?: {
-      CPU_UTILIZATION?: number
-      AVERAGE_WATTS?: number
-    }
-  }
+      CPU_UTILIZATION?: number;
+      AVERAGE_WATTS?: number;
+    };
+  };
   MONGODB?: {
-    URI?: string
-    CREDENTIALS?: string
-  }
-  DATABASE_URL?: string
-  ELECTRICITY_MAPS_TOKEN?: string
+    URI?: string;
+    CREDENTIALS?: string;
+  };
+  DATABASE_URL?: string;
+  ELECTRICITY_MAPS_TOKEN?: string;
 }
 
 export enum GroupBy {
@@ -164,6 +166,8 @@ const getEnvVar = (envVar: string): string => {
 const getConfig = (): CCFConfig => ({
   AWS: {
     INCLUDE_ESTIMATES: process.env.AWS_INCLUDE_ESTIMATES !== 'false',
+    INCLUDE_OPERATIONAL_METRICS: getEnvVar('AWS_INCLUDE_OPERATIONAL_METRICS') !== 'false',
+    INCLUDE_EMBODIED_METRICS: getEnvVar('AWS_INCLUDE_EMBODIED_METRICS') !== 'false',
     USE_BILLING_DATA:
       !!process.env.AWS_USE_BILLING_DATA &&
       process.env.AWS_USE_BILLING_DATA !== 'false',

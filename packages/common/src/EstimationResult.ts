@@ -6,6 +6,7 @@ import { reduceBy } from 'ramda'
 import { CalculationConstants } from './CalculationConstants'
 import { GroupBy } from './Config'
 import { getPeriodEndDate } from './helpers'
+import { EmbodiedMetricsAggregatedResult } from '@cloud-carbon-footprint/aws/src/application/AWSAccount'
 
 export interface EstimationResult {
   readonly timestamp: Date
@@ -24,6 +25,7 @@ export interface FootprintResponse {
   estimates: EstimationResult[]
   /** Constants used in the calculations (PUE, emissions factors, coefficients, etc.) */
   calculationConstants: CalculationConstants
+  embodiedMetrics: EmbodiedMetricsAggregatedResult[]
 }
 
 export interface ServiceData {

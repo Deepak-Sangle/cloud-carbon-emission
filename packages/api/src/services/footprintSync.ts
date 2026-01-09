@@ -59,6 +59,7 @@ export async function syncCloudConnectionFootprint(
   cloudConnectionId: string,
   startDate: string,
   endDate: string,
+  organizationId: string,
   config?: Partial<CCFConfig>
 ): Promise<{ recordsSaved: number; recordsFetched: number }> {
   const rawRequest: FootprintEstimatesRawRequest = {
@@ -85,6 +86,11 @@ export async function syncCloudConnectionFootprint(
       estimationRequest
     );
 
+    console.log(
+      "estimationResults",
+      JSON.stringify(estimationResults, null, 2)
+    );
+
     // Flatten and save to database
     const db = getDatabase();
     const flattenedData: NewCloudFootprint[] = [];
@@ -100,8 +106,9 @@ export async function syncCloudConnectionFootprint(
           cloudProvider: serviceEstimate.cloudProvider,
           kilowattHours: serviceEstimate.kilowattHours,
           co2e: serviceEstimate.co2e,
+          type: "OPERATIONAL_METRICS",
           cost: serviceEstimate.cost,
-          accountId: serviceEstimate.accountId,
+          serviceType: null,
           serviceName: serviceEstimate.serviceName,
           region: serviceEstimate.region,
           tags: serviceEstimate.tags
@@ -112,7 +119,27 @@ export async function syncCloudConnectionFootprint(
         });
       }
     }
-
+    for (const embodiedMetric of estimationResults.embodiedMetrics) {
+      const periodEndDate = embodiedMetric.timestamp;
+      periodEndDate.setDate(periodEndDate.getDate() + 1);
+      flattenedData.push({
+        id: randomUUID(),
+        cloudConnectionId,
+        timestamp: embodiedMetric.timestamp,
+        periodStartDate: embodiedMetric.timestamp,
+        periodEndDate: periodEndDate,
+        cloudProvider: "AWS",
+        serviceType: embodiedMetric.serviceType,
+        kilowattHours: embodiedMetric.kilowattHours,
+        co2e: embodiedMetric.co2e,
+        type: "EMBODIED_METRICS",
+        serviceName: embodiedMetric.serviceName,
+        region: embodiedMetric.region,
+        tags: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
     // Upsert data to database
     if (flattenedData.length > 0) {
       await db.transaction().execute(async (trx) => {
@@ -156,6 +183,7 @@ export async function syncCloudConnectionFootprint(
           loanId: null,
           kpiId: null,
           kpiResultId: null,
+          organizationId: organizationId,
         })
         .execute();
 
@@ -227,6 +255,8 @@ export async function syncAllCloudFootprints(): Promise<{
       if (connection.provider === "AWS" && connection.accountId) {
         config.AWS = {
           INCLUDE_ESTIMATES: true,
+          INCLUDE_EMBODIED_METRICS: true,
+          INCLUDE_OPERATIONAL_METRICS: true,
           USE_BILLING_DATA: false,
           accounts: [{ id: connection.accountId }],
           authentication: {
@@ -246,6 +276,7 @@ export async function syncAllCloudFootprints(): Promise<{
         connection.id,
         startDate,
         endDate,
+        connection.organizationId,
         config
       );
 

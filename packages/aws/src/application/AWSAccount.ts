@@ -260,6 +260,177 @@ export default class AWSAccount extends CloudProviderAccount {
     );
   }
 
+  /**
+   * Get embodied carbon metrics for all configured regions
+   *
+   * @param startDate - Start date for the query
+   * @param endDate - End date for the query
+   * @returns Aggregated embodied metrics for all regions
+   */
+  async getEmbodiedMetricsForRegions(
+    startDate: Date,
+    endDate: Date
+  ): Promise<EmbodiedMetricsAggregatedResult[]> {
+    const results: EmbodiedMetricsAggregatedResult[][] = [];
+
+    for (const regionId of this.regions) {
+      try {
+        this.logger.info(
+          `Getting embodied metrics for region ${regionId} from ${startDate} to ${endDate}`
+        );
+        const regionResults = await this.getEmbodiedMetricsForRegion(
+          regionId,
+          startDate,
+          endDate
+        );
+        this.logger.info(
+          `Got ${regionResults.length} embodied metrics for region ${regionId}`
+        );
+        results.push(regionResults);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to get embodied metrics for region ${regionId}: ${error.message}`
+        );
+      }
+    }
+
+    return results.flat();
+  }
+
+  /**
+   * Get embodied carbon metrics for a specific region
+   *
+   * @param regionId - AWS region ID
+   * @param startDate - Start date for the query
+   * @param endDate - End date for the query
+   * @returns Aggregated embodied metrics for the region
+   */
+  async getEmbodiedMetricsForRegion(
+    regionId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<EmbodiedMetricsAggregatedResult[]> {
+    const options = this.getServiceConfigurationOptions(
+      regionId,
+      this.credentials
+    );
+
+    const results: EmbodiedMetricsAggregatedResult[] = [];
+
+    // EC2 embodied metrics
+    try {
+      const ec2Service = new EC2(this.createServiceWrapper(options));
+      if (ec2Service.getEmbodiedMetrics) {
+        const ec2Results = await ec2Service.getEmbodiedMetrics(
+          startDate,
+          endDate,
+          regionId
+        );
+        for (const result of ec2Results) {
+          results.push({
+            timestamp: result.timestamp,
+            region: result.region,
+            serviceName: "EC2",
+            serviceType: result.instanceType,
+            usageAmount: result.runningHours,
+            usageUnit: "Hours",
+            co2e: result.carbon,
+            kilowattHours: result.kwh,
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to get EC2 embodied metrics: ${error.message}`);
+    }
+
+    // EBS embodied metrics
+    try {
+      const ebsService = new EBS(this.createServiceWrapper(options));
+      if (ebsService.getEmbodiedMetrics) {
+        const ebsResults = await ebsService.getEmbodiedMetrics(
+          startDate,
+          endDate,
+          regionId
+        );
+        for (const result of ebsResults) {
+          results.push({
+            timestamp: result.timestamp,
+            region: result.region,
+            serviceName: "EBS",
+            serviceType: result.volumeType,
+            usageAmount: result.sizeGbMonth,
+            usageUnit: "GB-Month",
+            co2e: result.carbon,
+            kilowattHours: result.kwh,
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to get EBS embodied metrics: ${error.message}`);
+    }
+
+    // S3 embodied metrics
+    try {
+      const s3Service = new S3(this.createServiceWrapper(options));
+      if (s3Service.getEmbodiedMetrics) {
+        const s3Results = await s3Service.getEmbodiedMetrics(
+          startDate,
+          endDate,
+          regionId
+        );
+        for (const result of s3Results) {
+          // S3 has multiple storage classes per day, create a summary entry
+          const storageClassSummary = result.storageClasses
+            .map((sc) => `${sc.class}:${sc.sizeGbMonth.toFixed(2)}GB`)
+            .join(", ");
+          results.push({
+            timestamp: result.timestamp,
+            region: result.region,
+            serviceName: "S3",
+            serviceType: storageClassSummary,
+            usageAmount: result.totalSizeGbMonth,
+            usageUnit: "GB-Month",
+            co2e: result.carbon,
+            kilowattHours: result.kwh,
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to get S3 embodied metrics: ${error.message}`);
+    }
+
+    // RDS embodied metrics (storage only)
+    try {
+      const rdsService = new RDS(
+        new RDSComputeService(this.createServiceWrapper(options)),
+        new RDSStorage(this.createServiceWrapper(options))
+      );
+      if (rdsService.getEmbodiedMetrics) {
+        const rdsResults = await rdsService.getEmbodiedMetrics(
+          startDate,
+          endDate,
+          regionId
+        );
+        for (const result of rdsResults) {
+          results.push({
+            timestamp: result.timestamp,
+            region: result.region,
+            serviceName: "RDS",
+            serviceType: "Storage",
+            usageAmount: result.sizeGbMonth,
+            usageUnit: "GB-Month",
+            co2e: result.carbon,
+            kilowattHours: result.kwh,
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to get RDS embodied metrics: ${error.message}`);
+    }
+
+    return results;
+  }
+
   private services: {
     [id: string]: (options: ServiceConfigurationOptions) => ICloudService;
   } = {
@@ -285,4 +456,18 @@ export default class AWSAccount extends CloudProviderAccount {
       return new Lambda(120000, 1000, this.createServiceWrapper(options));
     },
   };
+}
+
+/**
+ * Unified result type for embodied carbon metrics across all AWS services
+ */
+export interface EmbodiedMetricsAggregatedResult {
+  timestamp: Date;
+  region: string;
+  serviceName: string;
+  serviceType: string; // EC2 instance type, EBS volume type, S3 storage class, etc.
+  usageAmount: number;
+  usageUnit: string; // "Hours", "GB-Month", etc.
+  co2e: number; // in gCO2eq
+  kilowattHours: number; // in kWh
 }

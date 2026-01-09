@@ -6,17 +6,17 @@ import {
   ALI_CLOUD_CONSTANTS,
   ALI_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
   AliAccount,
-} from '@cloud-carbon-footprint/ali'
+} from "@cloud-carbon-footprint/ali";
 import {
   AWS_CLOUD_CONSTANTS,
   AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
   AWSAccount,
-} from '@cloud-carbon-footprint/aws'
+} from "@cloud-carbon-footprint/aws";
 import {
   AZURE_CLOUD_CONSTANTS,
   AZURE_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
   AzureAccount,
-} from '@cloud-carbon-footprint/azure'
+} from "@cloud-carbon-footprint/azure";
 import {
   AccountDetails,
   AWSBillingAccountConfig,
@@ -34,27 +34,28 @@ import {
   OnPremiseDataOutput,
   RecommendationResult,
   reduceByTimestamp,
-} from '@cloud-carbon-footprint/common'
-import { CloudConstantsByProvider } from '@cloud-carbon-footprint/core'
+} from "@cloud-carbon-footprint/common";
+import { CloudConstantsByProvider } from "@cloud-carbon-footprint/core";
 import {
   GCP_CLOUD_CONSTANTS,
   GCPAccount,
   getGCPEmissionsFactors,
-} from '@cloud-carbon-footprint/gcp'
-import { OnPremise } from '@cloud-carbon-footprint/on-premise'
-import { promises as fs } from 'fs'
+} from "@cloud-carbon-footprint/gcp";
+import { OnPremise } from "@cloud-carbon-footprint/on-premise";
+import { promises as fs } from "fs";
 
-import { EstimationRequest, RecommendationRequest } from './CreateValidRequest'
-import { includeCloudProviders } from './common/helpers'
+import { EmbodiedMetricsAggregatedResult } from "@cloud-carbon-footprint/aws/src/application/AWSAccount";
+import { EstimationRequest, RecommendationRequest } from "./CreateValidRequest";
+import { includeCloudProviders } from "./common/helpers";
 
-export const recommendationsMockPath = 'recommendations.mock.json'
+export const recommendationsMockPath = "recommendations.mock.json";
 
 export default class App {
   /**
    * Converts cloud provider constants to the API response format
    */
   private static toCloudProviderConstants(
-    constants: CloudConstantsByProvider,
+    constants: CloudConstantsByProvider
   ): CloudProviderConstants {
     return {
       pueAverage: constants.PUE_AVG,
@@ -69,7 +70,7 @@ export default class App {
       minWattsAverage: constants.MIN_WATTS_AVG || constants.MIN_WATTS_MEDIAN,
       maxWattsAverage: constants.MAX_WATTS_AVG || constants.MAX_WATTS_MEDIAN,
       memoryAverage: constants.MEMORY_AVG,
-    }
+    };
   }
 
   /**
@@ -77,170 +78,186 @@ export default class App {
    * Includes PUE factors, emissions intensity factors, and other coefficients.
    */
   getCalculationConstants(): CalculationConstants {
-    const config = configLoader()
+    const config = configLoader();
 
     const calculationConstants: CalculationConstants = {
       cloudProviderConstants: {},
       emissionsFactors: {},
-    }
+    };
 
     // Add AWS constants if enabled
     if (config.AWS?.INCLUDE_ESTIMATES) {
       calculationConstants.cloudProviderConstants.aws =
-        App.toCloudProviderConstants(AWS_CLOUD_CONSTANTS)
+        App.toCloudProviderConstants(AWS_CLOUD_CONSTANTS);
       calculationConstants.emissionsFactors.aws =
-        AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH
+        AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH;
     }
 
     // Add GCP constants if enabled
     if (config.GCP?.INCLUDE_ESTIMATES) {
       calculationConstants.cloudProviderConstants.gcp =
-        App.toCloudProviderConstants(GCP_CLOUD_CONSTANTS)
-      calculationConstants.emissionsFactors.gcp = getGCPEmissionsFactors()
+        App.toCloudProviderConstants(GCP_CLOUD_CONSTANTS);
+      calculationConstants.emissionsFactors.gcp = getGCPEmissionsFactors();
     }
 
     // Add Azure constants if enabled
     if (config.AZURE?.INCLUDE_ESTIMATES) {
       calculationConstants.cloudProviderConstants.azure =
-        App.toCloudProviderConstants(AZURE_CLOUD_CONSTANTS)
+        App.toCloudProviderConstants(AZURE_CLOUD_CONSTANTS);
       calculationConstants.emissionsFactors.azure =
-        AZURE_EMISSIONS_FACTORS_METRIC_TON_PER_KWH
+        AZURE_EMISSIONS_FACTORS_METRIC_TON_PER_KWH;
     }
 
     // Add Ali constants if enabled
     if (config.ALI?.INCLUDE_ESTIMATES) {
       calculationConstants.cloudProviderConstants.ali =
-        App.toCloudProviderConstants(ALI_CLOUD_CONSTANTS)
+        App.toCloudProviderConstants(ALI_CLOUD_CONSTANTS);
       calculationConstants.emissionsFactors.ali =
-        ALI_EMISSIONS_FACTORS_METRIC_TON_PER_KWH
+        ALI_EMISSIONS_FACTORS_METRIC_TON_PER_KWH;
     }
 
-    return calculationConstants
+    return calculationConstants;
   }
 
   async getCostAndEstimates(
-    request: EstimationRequest,
+    request: EstimationRequest
   ): Promise<FootprintResponse> {
-    const appLogger = new Logger('App')
-    const { startDate, endDate, accounts, cloudProviderToSeed } = request
-    const grouping = request.groupBy as GroupBy
-    const config = configLoader()
-    includeCloudProviders(cloudProviderToSeed, config)
-    const { AWS, GCP, AZURE, ALI } = config
+    const appLogger = new Logger("App");
+    const { startDate, endDate, accounts, cloudProviderToSeed } = request;
+    const grouping = request.groupBy as GroupBy;
+    const config = configLoader();
+    includeCloudProviders(cloudProviderToSeed, config);
+    const { AWS, GCP, AZURE, ALI } = config;
     if (configLoader().ELECTRICITY_MAPS_TOKEN)
-      appLogger.info('Using Electricity Maps')
+      appLogger.info("Using Electricity Maps");
     if (process.env.TEST_MODE) {
       return {
         estimates: [],
+        embodiedMetrics: [],
         calculationConstants: this.getCalculationConstants(),
-      }
+      };
     }
 
-    const AWSEstimatesByRegion: EstimationResult[][] = []
+    const AWSEstimatesByRegion: EstimationResult[][] = [];
+    const AWSEmbodiedMetrics: EmbodiedMetricsAggregatedResult[][] = [];
+
     if (AWS?.INCLUDE_ESTIMATES) {
-      appLogger.info('Starting AWS Estimations')
+      appLogger.info("Starting AWS Estimations");
       if (AWS?.USE_BILLING_DATA) {
+        console.log("here1sdf");
         // Check for multiple billing accounts configuration
-        const billingAccounts = AWS.billingAccounts as AWSBillingAccountConfig[]
+        const billingAccounts =
+          AWS.billingAccounts as AWSBillingAccountConfig[];
         if (billingAccounts && billingAccounts.length > 0) {
           // Multi-account billing data mode
           appLogger.info(
-            `Processing ${billingAccounts.length} AWS billing accounts`,
-          )
+            `Processing ${billingAccounts.length} AWS billing accounts`
+          );
           for (const billingAccount of billingAccounts) {
             appLogger.info(
-              `Processing AWS billing account: ${billingAccount.name}`,
-            )
+              `Processing AWS billing account: ${billingAccount.name}`
+            );
             const athenaConfig = {
               dataBaseName: billingAccount.athenaDbName,
               tableName: billingAccount.athenaDbTable,
               queryResultsLocation: billingAccount.athenaQueryResultLocation,
-            }
+            };
             const estimates = await new AWSAccount(
               billingAccount.id,
               billingAccount.name,
               [billingAccount.athenaRegion],
-              athenaConfig,
-            ).getDataFromCostAndUsageReports(startDate, endDate, grouping)
-            AWSEstimatesByRegion.push(estimates)
+              athenaConfig
+            ).getDataFromCostAndUsageReports(startDate, endDate, grouping);
+            AWSEstimatesByRegion.push(estimates);
           }
         } else {
           // Single billing account (backward compatible)
           const estimates = await new AWSAccount(
             AWS.BILLING_ACCOUNT_ID,
             AWS.BILLING_ACCOUNT_NAME,
-            [AWS.ATHENA_REGION],
-          ).getDataFromCostAndUsageReports(startDate, endDate, grouping)
-          AWSEstimatesByRegion.push(estimates)
-        }
-      } else if (AWS?.accounts.length) {
-        // Resolve AWS Estimates synchronously in order to avoid hitting API limits
-        const awsAccounts = AWS.accounts as AccountDetails[]
-        for (const account of awsAccounts) {
-          const estimates = await new AWSAccount(
-            account.id,
-            account.name,
-            AWS.CURRENT_REGIONS,
-          ).getDataForRegions(startDate, endDate, grouping)
-          AWSEstimatesByRegion.push(estimates)
+            [AWS.ATHENA_REGION]
+          ).getDataFromCostAndUsageReports(startDate, endDate, grouping);
+          AWSEstimatesByRegion.push(estimates);
         }
       }
-      appLogger.info('Finished AWS Estimations')
+      if (AWS.accounts.length > 0) {
+        // Resolve AWS Estimates synchronously in order to avoid hitting API limits
+        const awsAccounts = AWS.accounts as AccountDetails[];
+        for (const account of awsAccounts) {
+          if (AWS.INCLUDE_EMBODIED_METRICS) {
+            const estimates = await new AWSAccount(
+              account.id,
+              account.name,
+              AWS.CURRENT_REGIONS
+            ).getEmbodiedMetricsForRegions(startDate, endDate);
+            AWSEmbodiedMetrics.push(estimates);
+          }
+          if (AWS?.INCLUDE_OPERATIONAL_METRICS) {
+            const estimates = await new AWSAccount(
+              account.id,
+              account.name,
+              AWS.CURRENT_REGIONS
+            ).getDataForRegions(startDate, endDate, grouping);
+            AWSEstimatesByRegion.push(estimates);
+          }
+        }
+      }
+      appLogger.info("Finished AWS Estimations");
     }
 
-    const GCPEstimatesByRegion: EstimationResult[][] = []
+    const GCPEstimatesByRegion: EstimationResult[][] = [];
     if (GCP?.INCLUDE_ESTIMATES) {
-      appLogger.info('Starting GCP Estimations')
+      appLogger.info("Starting GCP Estimations");
       if (GCP?.USE_BILLING_DATA) {
         const estimates = await new GCPAccount(
           GCP.BILLING_PROJECT_ID,
           GCP.BILLING_PROJECT_NAME,
-          [],
-        ).getDataFromBillingExportTable(startDate, endDate, grouping)
-        GCPEstimatesByRegion.push(estimates)
+          []
+        ).getDataFromBillingExportTable(startDate, endDate, grouping);
+        GCPEstimatesByRegion.push(estimates);
       } else if (GCP?.projects.length) {
-        const googleProjectDetails = GCP.projects as AccountDetails[]
+        const googleProjectDetails = GCP.projects as AccountDetails[];
         // Resolve GCP Estimates asynchronously
         for (const project of googleProjectDetails) {
           const estimates = await Promise.all(
             await new GCPAccount(
               project.id,
               project.name,
-              GCP.CURRENT_REGIONS,
-            ).getDataForRegions(startDate, endDate, grouping),
-          )
-          GCPEstimatesByRegion.push(estimates)
+              GCP.CURRENT_REGIONS
+            ).getDataForRegions(startDate, endDate, grouping)
+          );
+          GCPEstimatesByRegion.push(estimates);
         }
       }
-      appLogger.info('Finished GCP Estimations')
+      appLogger.info("Finished GCP Estimations");
     }
 
-    const AzureEstimatesByRegion: EstimationResult[][] = []
+    const AzureEstimatesByRegion: EstimationResult[][] = [];
     if (AZURE?.INCLUDE_ESTIMATES && AZURE?.USE_BILLING_DATA) {
-      appLogger.info('Starting Azure Estimations')
-      const azureAccount = new AzureAccount()
-      await azureAccount.initializeAccount()
+      appLogger.info("Starting Azure Estimations");
+      const azureAccount = new AzureAccount();
+      await azureAccount.initializeAccount();
       const estimates = await azureAccount.getDataFromConsumptionManagement(
         startDate,
         endDate,
         grouping,
-        accounts,
-      )
-      AzureEstimatesByRegion.push(estimates)
-      appLogger.info('Finished Azure Estimations')
+        accounts
+      );
+      AzureEstimatesByRegion.push(estimates);
+      appLogger.info("Finished Azure Estimations");
     }
 
-    const AliEstimates: EstimationResult[][] = []
+    const AliEstimates: EstimationResult[][] = [];
     if (ALI.INCLUDE_ESTIMATES && ALI.authentication?.accessKeyId) {
-      appLogger.info('Starting Ali Cloud Estimations')
-      const aliAccount = new AliAccount()
+      appLogger.info("Starting Ali Cloud Estimations");
+      const aliAccount = new AliAccount();
       const estimates = await aliAccount.getDataFromCostAndUsageReports(
         startDate,
         endDate,
-        grouping,
-      )
-      AliEstimates.push(estimates)
-      appLogger.info('Finished Ali Cloud Estimations')
+        grouping
+      );
+      AliEstimates.push(estimates);
+      appLogger.info("Finished Ali Cloud Estimations");
     }
 
     const estimates = reduceByTimestamp(
@@ -248,13 +265,14 @@ export default class App {
         .flat()
         .concat(GCPEstimatesByRegion.flat())
         .concat(AzureEstimatesByRegion.flat())
-        .concat(AliEstimates.flat()),
-    )
+        .concat(AliEstimates.flat())
+    );
 
     return {
       estimates,
+      embodiedMetrics: AWSEmbodiedMetrics.flat().flat(),
       calculationConstants: this.getCalculationConstants(),
-    }
+    };
   }
 
   getEmissionsFactors(): EmissionRatioResult[] {
@@ -263,43 +281,43 @@ export default class App {
       GCP: getGCPEmissionsFactors(),
       AZURE: AZURE_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
       ALI: ALI_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
-    }
+    };
 
     return Object.entries(
-      CLOUD_PROVIDER_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
+      CLOUD_PROVIDER_EMISSIONS_FACTORS_METRIC_TON_PER_KWH
     ).reduce((emissionDataResult, entry) => {
-      const [cloudProvider, emissionsFactors] = entry
+      const [cloudProvider, emissionsFactors] = entry;
       Object.keys(emissionsFactors).forEach((region) => {
         emissionDataResult.push({
           cloudProvider,
           region,
           mtPerKwHour: emissionsFactors[region],
-        })
-      })
-      return emissionDataResult
-    }, [])
+        });
+      });
+      return emissionDataResult;
+    }, []);
   }
 
   async getRecommendations(
-    request: RecommendationRequest,
+    request: RecommendationRequest
   ): Promise<RecommendationResult[]> {
     if (process.env.TEST_MODE) {
       const recommendationsMock = await fs.readFile(
         recommendationsMockPath,
-        'utf8',
-      )
-      return JSON.parse(recommendationsMock)
+        "utf8"
+      );
+      return JSON.parse(recommendationsMock);
     }
-    const config = configLoader()
-    const AWS = config.AWS
-    const GCP = config.GCP
-    const AZURE = config.AZURE
-    const allRecommendations: RecommendationResult[][] = []
+    const config = configLoader();
+    const AWS = config.AWS;
+    const GCP = config.GCP;
+    const AZURE = config.AZURE;
+    const allRecommendations: RecommendationResult[][] = [];
 
-    const AWSRecommendations: RecommendationResult[][] = []
+    const AWSRecommendations: RecommendationResult[][] = [];
     if (AWS.USE_BILLING_DATA) {
       // Check for multiple billing accounts configuration
-      const billingAccounts = AWS.billingAccounts as AWSBillingAccountConfig[]
+      const billingAccounts = AWS.billingAccounts as AWSBillingAccountConfig[];
       if (billingAccounts && billingAccounts.length > 0) {
         // Multi-account billing data mode
         for (const billingAccount of billingAccounts) {
@@ -307,98 +325,98 @@ export default class App {
             dataBaseName: billingAccount.athenaDbName,
             tableName: billingAccount.athenaDbTable,
             queryResultsLocation: billingAccount.athenaQueryResultLocation,
-          }
+          };
           const recommendations = await new AWSAccount(
             billingAccount.id,
             billingAccount.name,
             [billingAccount.athenaRegion],
-            athenaConfig,
-          ).getDataForRecommendations(request.awsRecommendationTarget)
-          AWSRecommendations.push(recommendations)
+            athenaConfig
+          ).getDataForRecommendations(request.awsRecommendationTarget);
+          AWSRecommendations.push(recommendations);
         }
       } else {
         // Single billing account (backward compatible)
         const recommendations = await new AWSAccount(
           AWS.BILLING_ACCOUNT_ID,
           AWS.BILLING_ACCOUNT_NAME,
-          [AWS.ATHENA_REGION],
-        ).getDataForRecommendations(request.awsRecommendationTarget)
-        AWSRecommendations.push(recommendations)
+          [AWS.ATHENA_REGION]
+        ).getDataForRecommendations(request.awsRecommendationTarget);
+        AWSRecommendations.push(recommendations);
       }
     } else {
       // Resolve AWS Estimates synchronously in order to avoid hitting API limits
-      const awsAccounts = AWS.accounts as AccountDetails[]
+      const awsAccounts = AWS.accounts as AccountDetails[];
       for (const account of awsAccounts) {
         const recommendations: RecommendationResult[] = await Promise.all(
           await new AWSAccount(
             account.id,
             account.name,
-            AWS.CURRENT_REGIONS,
-          ).getDataForRecommendations(request.awsRecommendationTarget),
-        )
-        AWSRecommendations.push(recommendations)
+            AWS.CURRENT_REGIONS
+          ).getDataForRecommendations(request.awsRecommendationTarget)
+        );
+        AWSRecommendations.push(recommendations);
       }
     }
-    allRecommendations.push(AWSRecommendations.flat())
+    allRecommendations.push(AWSRecommendations.flat());
 
-    let GCPRecommendations: RecommendationResult[][] = []
+    let GCPRecommendations: RecommendationResult[][] = [];
     if (GCP.USE_BILLING_DATA) {
       const recommendations = await new GCPAccount(
         GCP.BILLING_PROJECT_ID,
         GCP.BILLING_PROJECT_NAME,
-        [],
-      ).getDataForRecommendations()
-      GCPRecommendations.push(recommendations)
+        []
+      ).getDataForRecommendations();
+      GCPRecommendations.push(recommendations);
     } else {
       GCPRecommendations = await Promise.all(
         GCP.projects.map((project) =>
           new GCPAccount(
             project.id,
             project.name,
-            GCP.CURRENT_REGIONS,
-          ).getDataForRecommendations(),
-        ),
-      )
+            GCP.CURRENT_REGIONS
+          ).getDataForRecommendations()
+        )
+      );
     }
-    allRecommendations.push(GCPRecommendations.flat())
+    allRecommendations.push(GCPRecommendations.flat());
 
-    const AzureRecommendations: RecommendationResult[][] = []
+    const AzureRecommendations: RecommendationResult[][] = [];
     if (AZURE?.USE_BILLING_DATA) {
-      const azureAccount = new AzureAccount()
-      await azureAccount.initializeAccount()
+      const azureAccount = new AzureAccount();
+      await azureAccount.initializeAccount();
       const recommendations = await azureAccount.getDataFromAdvisorManagement(
-        request.accounts,
-      )
-      AzureRecommendations.push(recommendations)
+        request.accounts
+      );
+      AzureRecommendations.push(recommendations);
     }
-    allRecommendations.push(AzureRecommendations.flat())
+    allRecommendations.push(AzureRecommendations.flat());
 
-    return allRecommendations.flat()
+    return allRecommendations.flat();
   }
 
   async getAwsEstimatesFromInputData(
-    inputData: LookupTableInput[],
+    inputData: LookupTableInput[]
   ): Promise<LookupTableOutput[]> {
-    return await AWSAccount.getCostAndUsageReportsDataFromInputData(inputData)
+    return await AWSAccount.getCostAndUsageReportsDataFromInputData(inputData);
   }
 
   async getGcpEstimatesFromInputData(
-    inputData: LookupTableInput[],
+    inputData: LookupTableInput[]
   ): Promise<LookupTableOutput[]> {
-    return await GCPAccount.getBillingExportDataFromInputData(inputData)
+    return await GCPAccount.getBillingExportDataFromInputData(inputData);
   }
 
   async getAzureEstimatesFromInputData(
-    inputData: LookupTableInput[],
+    inputData: LookupTableInput[]
   ): Promise<LookupTableOutput[]> {
     return await AzureAccount.getDataFromConsumptionManagementInputData(
-      inputData,
-    )
+      inputData
+    );
   }
 
   getOnPremiseEstimatesFromInputData(
-    inputData: OnPremiseDataInput[],
+    inputData: OnPremiseDataInput[]
   ): OnPremiseDataOutput[] {
-    return OnPremise.getOnPremiseDataFromInputData(inputData)
+    return OnPremise.getOnPremiseDataFromInputData(inputData);
   }
 }
