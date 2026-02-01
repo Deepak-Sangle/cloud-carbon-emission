@@ -2,42 +2,42 @@
  * © 2021 Thoughtworks, Inc.
  */
 
-import { v3 } from '@google-cloud/monitoring'
-import { ClientOptions } from 'google-gax'
-import { BigQuery } from '@google-cloud/bigquery'
-import { ProjectsClient } from '@google-cloud/resource-manager'
-import { RecommenderClient } from '@google-cloud/recommender'
 import {
-  InstancesClient,
-  DisksClient,
-  AddressesClient,
-  ImagesClient,
-  MachineTypesClient,
-} from '@google-cloud/compute'
-import { GoogleAuth } from 'google-auth-library'
-import {
-  ICloudService,
-  Region,
-  ComputeEstimator,
-  StorageEstimator,
-  NetworkingEstimator,
-  MemoryEstimator,
-  UnknownEstimator,
-  CloudProviderAccount,
-  EmbodiedEmissionsEstimator,
-} from '@cloud-carbon-footprint/core'
-import {
-  configLoader,
   EstimationResult,
-  RecommendationResult,
   GoogleAuthClient,
+  GroupBy,
   LookupTableInput,
   LookupTableOutput,
-  GroupBy,
-} from '@cloud-carbon-footprint/common'
-import ServiceWrapper from '../lib/ServiceWrapper'
-import { BillingExportTable, ComputeEngine, Recommendations } from '../lib'
-import { GCP_CLOUD_CONSTANTS, getGCPEmissionsFactors } from '../domain'
+  RecommendationResult,
+  configLoader,
+} from "@cloud-carbon-footprint/common";
+import {
+  CloudProviderAccount,
+  ComputeEstimator,
+  EmbodiedEmissionsEstimator,
+  ICloudService,
+  MemoryEstimator,
+  NetworkingEstimator,
+  Region,
+  StorageEstimator,
+  UnknownEstimator,
+} from "@cloud-carbon-footprint/core";
+import { BigQuery } from "@google-cloud/bigquery";
+import {
+  AddressesClient,
+  DisksClient,
+  ImagesClient,
+  InstancesClient,
+  MachineTypesClient,
+} from "@google-cloud/compute";
+import { v3 } from "@google-cloud/monitoring";
+import { RecommenderClient } from "@google-cloud/recommender";
+import { ProjectsClient } from "@google-cloud/resource-manager";
+import { GoogleAuth } from "google-auth-library";
+import { ClientOptions } from "google-gax";
+import { GCP_CLOUD_CONSTANTS, getGCPEmissionsFactors } from "../domain";
+import { BillingExportTable, ComputeEngine, Recommendations } from "../lib";
+import ServiceWrapper from "../lib/ServiceWrapper";
 
 export default class GCPAccount extends CloudProviderAccount {
   constructor(
@@ -45,7 +45,7 @@ export default class GCPAccount extends CloudProviderAccount {
     public name: string,
     private regions: string[],
   ) {
-    super()
+    super();
   }
 
   async getDataForRegions(
@@ -60,10 +60,10 @@ export default class GCPAccount extends CloudProviderAccount {
           startDate,
           endDate,
           grouping,
-        )
+        );
       }),
-    )
-    return estimationResults.flat()
+    );
+    return estimationResults.flat();
   }
 
   async getDataForRegion(
@@ -72,19 +72,26 @@ export default class GCPAccount extends CloudProviderAccount {
     endDate: Date,
     grouping: GroupBy,
   ): Promise<EstimationResult[]> {
-    const gcpServices = this.getServices()
+    const gcpServices = this.getServices();
     const gcpConstants = {
       minWatts: GCP_CLOUD_CONSTANTS.MIN_WATTS_MEDIAN,
       maxWatts: GCP_CLOUD_CONSTANTS.MAX_WATTS_MEDIAN,
       powerUsageEffectiveness: GCP_CLOUD_CONSTANTS.getPUE(),
-    }
+    };
     const region = new Region(
       regionId,
       gcpServices,
       getGCPEmissionsFactors(),
       gcpConstants,
-    )
-    return await this.getRegionData('GCP', region, startDate, endDate, grouping)
+    );
+    return await this.getRegionData(
+      "GCP",
+      region,
+      startDate,
+      endDate,
+      grouping,
+      null,
+    );
   }
 
   async getDataFromBillingExportTable(
@@ -103,12 +110,12 @@ export default class GCPAccount extends CloudProviderAccount {
         GCP_CLOUD_CONSTANTS.SERVER_EXPECTED_LIFESPAN,
       ),
       new BigQuery({ projectId: this.id }),
-    )
+    );
     return await billingExportTableService.getEstimates(
       startDate,
       endDate,
       grouping,
-    )
+    );
   }
 
   static async getBillingExportDataFromInputData(
@@ -124,21 +131,21 @@ export default class GCPAccount extends CloudProviderAccount {
       new EmbodiedEmissionsEstimator(
         GCP_CLOUD_CONSTANTS.SERVER_EXPECTED_LIFESPAN,
       ),
-    )
-    return await billingExportTableService.getEstimatesFromInputData(inputData)
+    );
+    return await billingExportTableService.getEstimatesFromInputData(inputData);
   }
 
   getServices(): ICloudService[] {
     return configLoader().GCP.CURRENT_SERVICES.map(({ key }) => {
-      return this.getService(key)
-    })
+      return this.getService(key);
+    });
   }
 
   async getDataForRecommendations(): Promise<RecommendationResult[]> {
     const auth = new GoogleAuth({
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-    })
-    const googleAuthClient: GoogleAuthClient = await auth.getClient()
+      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+    });
+    const googleAuthClient: GoogleAuthClient = await auth.getClient();
 
     const serviceWrapper = new ServiceWrapper(
       new ProjectsClient(),
@@ -149,32 +156,32 @@ export default class GCPAccount extends CloudProviderAccount {
       new ImagesClient(),
       new MachineTypesClient(),
       new RecommenderClient(),
-    )
+    );
 
     const recommendations = new Recommendations(
       new ComputeEstimator(),
       new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
       serviceWrapper,
-    )
+    );
 
-    return await recommendations.getRecommendations()
+    return await recommendations.getRecommendations();
   }
 
   private getService(key: string): ICloudService {
     if (this.services[key] === undefined)
-      throw new Error('Unsupported service: ' + key)
+      throw new Error("Unsupported service: " + key);
     const options: ClientOptions = {
       projectId: this.id,
-    }
-    return this.services[key](options)
+    };
+    return this.services[key](options);
   }
 
   private services: {
-    [id: string]: (options: ClientOptions) => ICloudService
+    [id: string]: (options: ClientOptions) => ICloudService;
   } = {
     computeEngine: (options) => {
-      return new ComputeEngine(new v3.MetricServiceClient(options))
+      return new ComputeEngine(new v3.MetricServiceClient(options));
     },
-  }
+  };
 }

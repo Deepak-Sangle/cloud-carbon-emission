@@ -313,12 +313,13 @@ export const createRouter = (config?: CCFConfig) => {
     "/healthz/db",
     async (req: express.Request, res: express.Response) => {
       const isConnected = await isDatabaseConnected();
+
       if (isConnected) {
         res.status(200).json({ status: "healthy", database: "connected" });
       } else {
         res.status(503).json({ status: "unhealthy", database: "disconnected" });
       }
-    }
+    },
   );
 
   return router;

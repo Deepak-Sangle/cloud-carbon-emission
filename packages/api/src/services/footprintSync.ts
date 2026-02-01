@@ -13,7 +13,6 @@ import {
   configLoader,
   getDatabase,
   Logger,
-  NewCloudFootprint,
   setConfig,
 } from "@cloud-carbon-footprint/common";
 import { randomUUID } from "crypto";
@@ -41,7 +40,7 @@ function deepMerge(target: CCFConfig, source: Partial<CCFConfig>): CCFConfig {
       ) {
         result[key] = deepMerge(
           targetValue as Record<string, unknown>,
-          sourceValue as Record<string, unknown>
+          sourceValue as Record<string, unknown>,
         );
       } else if (sourceValue !== undefined) {
         result[key] = sourceValue;
@@ -60,8 +59,8 @@ export async function syncCloudConnectionFootprint(
   startDate: string,
   endDate: string,
   organizationId: string,
-  config?: Partial<CCFConfig>
-): Promise<{ recordsSaved: number; recordsFetched: number }> {
+  config?: Partial<CCFConfig>,
+): Promise<number> {
   const rawRequest: FootprintEstimatesRawRequest = {
     startDate,
     endDate,
@@ -78,124 +77,51 @@ export async function syncCloudConnectionFootprint(
   setConfig(mergedConfig);
 
   const footprintApp = new App();
-  let savedCount = 0;
 
   try {
     const estimationRequest = createValidFootprintRequest(rawRequest);
     const estimationResults = await footprintApp.getCostAndEstimates(
-      estimationRequest
+      estimationRequest,
+      cloudConnectionId,
     );
 
-    console.log(
-      "estimationResults",
-      JSON.stringify(estimationResults, null, 2)
-    );
+    // console.log(
+    //   "estimationResults",
+    //   JSON.stringify(estimationResults, null, 2),
+    // );
 
-    // Flatten and save to database
     const db = getDatabase();
-    const flattenedData: NewCloudFootprint[] = [];
+    // Update lastSync on CloudConnection
+    await db
+      .updateTable("CloudConnection")
+      .set({ lastSync: new Date(), updatedAt: new Date() })
+      .where("id", "=", cloudConnectionId)
+      .execute();
 
-    for (const estimate of estimationResults.estimates) {
-      for (const serviceEstimate of estimate.serviceEstimates) {
-        flattenedData.push({
-          id: randomUUID(),
-          cloudConnectionId,
-          timestamp: estimate.timestamp,
-          periodStartDate: estimate.periodStartDate,
-          periodEndDate: estimate.periodEndDate,
-          cloudProvider: serviceEstimate.cloudProvider,
-          kilowattHours: serviceEstimate.kilowattHours,
-          co2e: serviceEstimate.co2e,
-          type: "OPERATIONAL_METRICS",
-          cost: serviceEstimate.cost,
-          serviceType: null,
-          serviceName: serviceEstimate.serviceName,
-          region: serviceEstimate.region,
-          tags: serviceEstimate.tags
-            ? JSON.stringify(serviceEstimate.tags)
-            : null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-      }
-    }
-    for (const embodiedMetric of estimationResults.embodiedMetrics) {
-      const periodEndDate = embodiedMetric.timestamp;
-      periodEndDate.setDate(periodEndDate.getDate() + 1);
-      flattenedData.push({
+    // Create audit log entry
+    await db
+      .insertInto("AuditLog")
+      .values({
         id: randomUUID(),
+        action: "CLOUD_FOOTPRINT_DATA_SYNCED",
+        entity: "CLOUD_CONNECTION",
+        entityId: cloudConnectionId,
+        details: JSON.stringify({
+          startDate,
+          endDate,
+        }),
         cloudConnectionId,
-        timestamp: embodiedMetric.timestamp,
-        periodStartDate: embodiedMetric.timestamp,
-        periodEndDate: periodEndDate,
-        cloudProvider: "AWS",
-        serviceType: embodiedMetric.serviceType,
-        kilowattHours: embodiedMetric.kilowattHours,
-        co2e: embodiedMetric.co2e,
-        type: "EMBODIED_METRICS",
-        serviceName: embodiedMetric.serviceName,
-        region: embodiedMetric.region,
-        tags: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-    }
-    // Upsert data to database
-    if (flattenedData.length > 0) {
-      await db.transaction().execute(async (trx) => {
-        // Delete existing data for the connection within the date range
-        await trx
-          .deleteFrom("CloudFootprint")
-          .where("cloudConnectionId", "=", cloudConnectionId)
-          .where("timestamp", ">=", new Date(startDate))
-          .where("timestamp", "<=", new Date(endDate))
-          .execute();
+        userId: null,
+        kpiId: null,
+        kpiResultId: null,
+        organizationId: organizationId,
+      })
+      .execute();
 
-        // Bulk insert
-        await trx.insertInto("CloudFootprint").values(flattenedData).execute();
-      });
-
-      savedCount = flattenedData.length;
-
-      // Update lastSync on CloudConnection
-      await db
-        .updateTable("CloudConnection")
-        .set({ lastSync: new Date(), updatedAt: new Date() })
-        .where("id", "=", cloudConnectionId)
-        .execute();
-
-      // Create audit log entry
-      await db
-        .insertInto("AuditLog")
-        .values({
-          id: randomUUID(),
-          action: "CLOUD_FOOTPRINT_DATA_SYNCED",
-          entity: "CLOUD_CONNECTION",
-          entityId: cloudConnectionId,
-          details: JSON.stringify({
-            startDate,
-            endDate,
-            recordsSaved: savedCount,
-            recordsFetched: flattenedData.length,
-          }),
-          cloudConnectionId,
-          userId: null,
-          loanId: null,
-          kpiId: null,
-          kpiResultId: null,
-          organizationId: organizationId,
-        })
-        .execute();
-
-      syncLogger.info(
-        `Successfully saved ${savedCount} footprint records for connection: ${cloudConnectionId}`
-      );
-    }
-
-    return {
-      recordsSaved: savedCount,
-      recordsFetched: flattenedData.length,
-    };
+    return (
+      estimationResults.estimates.length +
+      estimationResults.embodiedMetrics.length
+    );
   } finally {
     // Reset config back to default
     setConfig(defaultConfig);
@@ -225,7 +151,7 @@ export async function syncAllCloudFootprints(): Promise<{
   const endDate = today.toISOString().split("T")[0]; // "YYYY-MM-DD" (today, exclusive)
 
   syncLogger.info(
-    `Starting sync for all active cloud connections for date: ${startDate} to ${endDate}`
+    `Starting sync for all active cloud connections for date: ${startDate} to ${endDate}`,
   );
 
   const db = getDatabase();
@@ -246,7 +172,7 @@ export async function syncAllCloudFootprints(): Promise<{
   for (const connection of connections) {
     try {
       syncLogger.info(
-        `Syncing connection ${connection.id} (${connection.provider})...`
+        `Syncing connection ${connection.id} (${connection.provider})...`,
       );
 
       // Build config based on provider
@@ -277,28 +203,28 @@ export async function syncAllCloudFootprints(): Promise<{
         startDate,
         endDate,
         connection.organizationId,
-        config
+        config,
       );
 
-      totalRecordsSaved += result.recordsSaved;
+      totalRecordsSaved += result;
       totalConnectionsProcessed++;
 
       syncLogger.info(
-        `Successfully synced connection ${connection.id}: ${result.recordsSaved} records`
+        `Successfully synced connection ${connection.id}: ${result} records`,
       );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       syncLogger.error(
         `Failed to sync connection ${connection.id}: ${errorMessage}`,
-        error
+        error,
       );
       failed.push({ id: connection.id, error: errorMessage });
     }
   }
 
   syncLogger.info(
-    `Sync completed: ${totalConnectionsProcessed}/${connections.length} connections processed, ${totalRecordsSaved} total records saved, ${failed.length} failed`
+    `Sync completed: ${totalConnectionsProcessed}/${connections.length} connections processed, ${totalRecordsSaved} total records saved, ${failed.length} failed`,
   );
 
   return {

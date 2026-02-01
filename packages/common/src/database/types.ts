@@ -31,7 +31,6 @@ export interface AuditLogTable {
   entityId: string;
   details: string; // JSON string
   userId: string | null;
-  loanId: string | null;
   kpiId: string | null;
   kpiResultId: string | null;
   organizationId: string | null;
@@ -52,7 +51,7 @@ export interface CloudFootprintTable {
   cloudProvider: string;
   kilowattHours: number | null;
   co2e: number;
-  cost: number;
+  cost: number | null;
   type: "OPERATIONAL_METRICS" | "EMBODIED_METRICS";
   serviceType: string | null;
   serviceName: string;

@@ -3,25 +3,14 @@
  */
 
 import {
-  Athena,
-  CloudWatch,
-  CloudWatchLogs,
-  CostExplorer,
-  Credentials,
-  Glue,
-  S3 as S3Service,
-} from "aws-sdk";
-import { ServiceConfigurationOptions } from "aws-sdk/lib/service";
-
-import {
   AWS_RECOMMENDATIONS_TARGETS,
-  configLoader,
   EstimationResult,
   GroupBy,
   Logger,
   LookupTableInput,
   LookupTableOutput,
   RecommendationResult,
+  configLoader,
 } from "@cloud-carbon-footprint/common";
 import {
   CloudProviderAccount,
@@ -34,6 +23,16 @@ import {
   StorageEstimator,
   UnknownEstimator,
 } from "@cloud-carbon-footprint/core";
+import {
+  Athena,
+  CloudWatch,
+  CloudWatchLogs,
+  CostExplorer,
+  Credentials,
+  Glue,
+  S3 as S3Service,
+} from "aws-sdk";
+import { ServiceConfigurationOptions } from "aws-sdk/lib/service";
 
 import {
   AthenaConfig,
@@ -51,6 +50,7 @@ import {
 
 import AWSCredentialsProvider from "./AWSCredentialsProvider";
 
+import { saveFootprintResponse } from "@cloud-carbon-footprint/common/src/database/connection";
 import {
   AWS_CLOUD_CONSTANTS,
   AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
@@ -66,7 +66,7 @@ export default class AWSAccount extends CloudProviderAccount {
     public id: string,
     public name: string,
     private regions: string[],
-    athenaConfig?: AthenaConfig
+    athenaConfig?: AthenaConfig,
   ) {
     super();
     this.logger = new Logger(`AWSAccount-${id}`);
@@ -77,7 +77,8 @@ export default class AWSAccount extends CloudProviderAccount {
   async getDataForRegions(
     startDate: Date,
     endDate: Date,
-    grouping: GroupBy
+    grouping: GroupBy,
+    connectionId: string
   ): Promise<EstimationResult[]> {
     const results: EstimationResult[][] = [];
     for (const regionId of this.regions) {
@@ -94,22 +95,23 @@ export default class AWSAccount extends CloudProviderAccount {
 
         try {
           this.logger.info(
-            `Getting data for region ${regionId} from ${chunkStart} to ${chunkEnd}`
+            `Getting data for region ${regionId} from ${chunkStart} to ${chunkEnd}`,
           );
           const regionEstimates: EstimationResult[] =
             await this.getDataForRegion(
               regionId,
               chunkStart,
               chunkEnd,
-              grouping
+              grouping,
+              connectionId,
             );
           this.logger.info(
-            `Got ${regionEstimates.length} estimates for region ${regionId} from ${chunkStart} to ${chunkEnd}`
+            `Got ${regionEstimates.length} estimates for region ${regionId} from ${chunkStart} to ${chunkEnd}`,
           );
           results.push(regionEstimates);
         } catch (error) {
           this.logger.warn(
-            `Failed to get data for region ${regionId} from ${chunkStart} to ${chunkEnd}: ${error.message}`
+            `Failed to get data for region ${regionId} from ${chunkStart} to ${chunkEnd}: ${error.message}`,
           );
           // This most probably means that we can't access data that old
           // so we break the loop
@@ -127,7 +129,8 @@ export default class AWSAccount extends CloudProviderAccount {
     regionId: string,
     startDate: Date,
     endDate: Date,
-    grouping: GroupBy
+    grouping: GroupBy,
+    connectionId?: string,
   ): Promise<EstimationResult[]> {
     const awsServices = this.getServices(regionId);
     const awsConstants = {
@@ -139,14 +142,15 @@ export default class AWSAccount extends CloudProviderAccount {
       regionId,
       awsServices,
       AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
-      awsConstants
+      awsConstants,
     );
     return this.getRegionData(
       configLoader().AWS.NAME,
       region,
       startDate,
       endDate,
-      grouping
+      grouping,
+      connectionId,
     );
   }
 
@@ -157,25 +161,25 @@ export default class AWSAccount extends CloudProviderAccount {
   }
 
   async getDataForRecommendations(
-    recommendationTarget: AWS_RECOMMENDATIONS_TARGETS
+    recommendationTarget: AWS_RECOMMENDATIONS_TARGETS,
   ): Promise<RecommendationResult[]> {
     const serviceWrapper = this.createServiceWrapper(
       this.getServiceConfigurationOptions(
         configLoader().AWS.ATHENA_REGION,
-        this.credentials
-      )
+        this.credentials,
+      ),
     );
 
     return await Recommendations.getRecommendations(
       recommendationTarget,
-      serviceWrapper
+      serviceWrapper,
     );
   }
 
   async getDataFromCostAndUsageReports(
     startDate: Date,
     endDate: Date,
-    grouping: GroupBy
+    grouping: GroupBy,
   ): Promise<EstimationResult[]> {
     // Use athenaConfig region if available, otherwise fall back to global config
     const athenaRegion = this.athenaConfig
@@ -190,22 +194,22 @@ export default class AWSAccount extends CloudProviderAccount {
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
       new UnknownEstimator(AWS_CLOUD_CONSTANTS.ESTIMATE_UNKNOWN_USAGE_BY),
       new EmbodiedEmissionsEstimator(
-        AWS_CLOUD_CONSTANTS.SERVER_EXPECTED_LIFESPAN
+        AWS_CLOUD_CONSTANTS.SERVER_EXPECTED_LIFESPAN,
       ),
       this.createServiceWrapper(
-        this.getServiceConfigurationOptions(athenaRegion, this.credentials)
+        this.getServiceConfigurationOptions(athenaRegion, this.credentials),
       ),
-      this.athenaConfig
+      this.athenaConfig,
     );
     return await costAndUsageReportsService.getEstimates(
       startDate,
       endDate,
-      grouping
+      grouping,
     );
   }
 
   static async getCostAndUsageReportsDataFromInputData(
-    inputData: LookupTableInput[]
+    inputData: LookupTableInput[],
   ): Promise<LookupTableOutput[]> {
     const costAndUsageReportsService = new CostAndUsageReports(
       new ComputeEstimator(),
@@ -215,18 +219,18 @@ export default class AWSAccount extends CloudProviderAccount {
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
       new UnknownEstimator(AWS_CLOUD_CONSTANTS.ESTIMATE_UNKNOWN_USAGE_BY),
       new EmbodiedEmissionsEstimator(
-        AWS_CLOUD_CONSTANTS.SERVER_EXPECTED_LIFESPAN
-      )
+        AWS_CLOUD_CONSTANTS.SERVER_EXPECTED_LIFESPAN,
+      ),
     );
     return await costAndUsageReportsService.getEstimatesFromInputData(
-      inputData
+      inputData,
     );
   }
 
   private getService(
     key: string,
     region: string,
-    credentials: Credentials
+    credentials: Credentials,
   ): ICloudService {
     if (this.services[key] === undefined)
       throw new Error("Unsupported service: " + key);
@@ -236,7 +240,7 @@ export default class AWSAccount extends CloudProviderAccount {
 
   private getServiceConfigurationOptions(
     region: string,
-    credentials: Credentials
+    credentials: Credentials,
   ): ServiceConfigurationOptions {
     return {
       region: region,
@@ -256,7 +260,7 @@ export default class AWSAccount extends CloudProviderAccount {
       }),
       new S3Service(options),
       new Athena(options),
-      new Glue(options)
+      new Glue(options),
     );
   }
 
@@ -269,27 +273,29 @@ export default class AWSAccount extends CloudProviderAccount {
    */
   async getEmbodiedMetricsForRegions(
     startDate: Date,
-    endDate: Date
+    endDate: Date,
+    connectionId: string | null,
   ): Promise<EmbodiedMetricsAggregatedResult[]> {
     const results: EmbodiedMetricsAggregatedResult[][] = [];
 
     for (const regionId of this.regions) {
       try {
         this.logger.info(
-          `Getting embodied metrics for region ${regionId} from ${startDate} to ${endDate}`
+          `Getting embodied metrics for region ${regionId} from ${startDate} to ${endDate}`,
         );
         const regionResults = await this.getEmbodiedMetricsForRegion(
           regionId,
           startDate,
-          endDate
+          endDate,
+          connectionId,
         );
         this.logger.info(
-          `Got ${regionResults.length} embodied metrics for region ${regionId}`
+          `Got ${regionResults.length} embodied metrics for region ${regionId}`,
         );
         results.push(regionResults);
       } catch (error) {
         this.logger.warn(
-          `Failed to get embodied metrics for region ${regionId}: ${error.message}`
+          `Failed to get embodied metrics for region ${regionId}: ${error.message}`,
         );
       }
     }
@@ -308,11 +314,12 @@ export default class AWSAccount extends CloudProviderAccount {
   async getEmbodiedMetricsForRegion(
     regionId: string,
     startDate: Date,
-    endDate: Date
+    endDate: Date,
+    connectionId: string | null,
   ): Promise<EmbodiedMetricsAggregatedResult[]> {
     const options = this.getServiceConfigurationOptions(
       regionId,
-      this.credentials
+      this.credentials,
     );
 
     const results: EmbodiedMetricsAggregatedResult[] = [];
@@ -324,7 +331,7 @@ export default class AWSAccount extends CloudProviderAccount {
         const ec2Results = await ec2Service.getEmbodiedMetrics(
           startDate,
           endDate,
-          regionId
+          regionId,
         );
         for (const result of ec2Results) {
           results.push({
@@ -338,6 +345,17 @@ export default class AWSAccount extends CloudProviderAccount {
             kilowattHours: result.kwh,
           });
         }
+        // this means we are supposed to early sync the data
+        if (connectionId != null) {
+          // save to db now directly
+          await saveFootprintResponse(
+            [],
+            results,
+            connectionId,
+            startDate,
+            endDate,
+          );
+        }
       }
     } catch (error) {
       this.logger.warn(`Failed to get EC2 embodied metrics: ${error.message}`);
@@ -350,7 +368,7 @@ export default class AWSAccount extends CloudProviderAccount {
         const ebsResults = await ebsService.getEmbodiedMetrics(
           startDate,
           endDate,
-          regionId
+          regionId,
         );
         for (const result of ebsResults) {
           results.push({
@@ -364,6 +382,16 @@ export default class AWSAccount extends CloudProviderAccount {
             kilowattHours: result.kwh,
           });
         }
+        if (connectionId != null) {
+          // save to db now directly
+          await saveFootprintResponse(
+            [],
+            results,
+            connectionId,
+            startDate,
+            endDate,
+          );
+        }
       }
     } catch (error) {
       this.logger.warn(`Failed to get EBS embodied metrics: ${error.message}`);
@@ -376,7 +404,7 @@ export default class AWSAccount extends CloudProviderAccount {
         const s3Results = await s3Service.getEmbodiedMetrics(
           startDate,
           endDate,
-          regionId
+          regionId,
         );
         for (const result of s3Results) {
           // S3 has multiple storage classes per day, create a summary entry
@@ -394,6 +422,16 @@ export default class AWSAccount extends CloudProviderAccount {
             kilowattHours: result.kwh,
           });
         }
+        if (connectionId != null) {
+          // save to db now directly
+          await saveFootprintResponse(
+            [],
+            results,
+            connectionId,
+            startDate,
+            endDate,
+          );
+        }
       }
     } catch (error) {
       this.logger.warn(`Failed to get S3 embodied metrics: ${error.message}`);
@@ -403,13 +441,13 @@ export default class AWSAccount extends CloudProviderAccount {
     try {
       const rdsService = new RDS(
         new RDSComputeService(this.createServiceWrapper(options)),
-        new RDSStorage(this.createServiceWrapper(options))
+        new RDSStorage(this.createServiceWrapper(options)),
       );
       if (rdsService.getEmbodiedMetrics) {
         const rdsResults = await rdsService.getEmbodiedMetrics(
           startDate,
           endDate,
-          regionId
+          regionId,
         );
         for (const result of rdsResults) {
           results.push({
@@ -422,6 +460,16 @@ export default class AWSAccount extends CloudProviderAccount {
             co2e: result.carbon,
             kilowattHours: result.kwh,
           });
+        }
+        if (connectionId != null) {
+          // save to db now directly
+          await saveFootprintResponse(
+            [],
+            results,
+            connectionId,
+            startDate,
+            endDate,
+          );
         }
       }
     } catch (error) {
@@ -449,7 +497,7 @@ export default class AWSAccount extends CloudProviderAccount {
     rds: (options) => {
       return new RDS(
         new RDSComputeService(this.createServiceWrapper(options)),
-        new RDSStorage(this.createServiceWrapper(options))
+        new RDSStorage(this.createServiceWrapper(options)),
       );
     },
     lambda: (options) => {

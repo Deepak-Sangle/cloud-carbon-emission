@@ -8,9 +8,9 @@ import {
   AliAccount,
 } from "@cloud-carbon-footprint/ali";
 import {
+  AWSAccount,
   AWS_CLOUD_CONSTANTS,
   AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
-  AWSAccount,
 } from "@cloud-carbon-footprint/aws";
 import {
   AZURE_CLOUD_CONSTANTS,
@@ -18,11 +18,10 @@ import {
   AzureAccount,
 } from "@cloud-carbon-footprint/azure";
 import {
-  AccountDetails,
   AWSBillingAccountConfig,
+  AccountDetails,
   CalculationConstants,
   CloudProviderConstants,
-  configLoader,
   EmissionRatioResult,
   EstimationResult,
   FootprintResponse,
@@ -33,12 +32,13 @@ import {
   OnPremiseDataInput,
   OnPremiseDataOutput,
   RecommendationResult,
+  configLoader,
   reduceByTimestamp,
 } from "@cloud-carbon-footprint/common";
 import { CloudConstantsByProvider } from "@cloud-carbon-footprint/core";
 import {
-  GCP_CLOUD_CONSTANTS,
   GCPAccount,
+  GCP_CLOUD_CONSTANTS,
   getGCPEmissionsFactors,
 } from "@cloud-carbon-footprint/gcp";
 import { OnPremise } from "@cloud-carbon-footprint/on-premise";
@@ -55,7 +55,7 @@ export default class App {
    * Converts cloud provider constants to the API response format
    */
   private static toCloudProviderConstants(
-    constants: CloudConstantsByProvider
+    constants: CloudConstantsByProvider,
   ): CloudProviderConstants {
     return {
       pueAverage: constants.PUE_AVG,
@@ -120,7 +120,8 @@ export default class App {
   }
 
   async getCostAndEstimates(
-    request: EstimationRequest
+    request: EstimationRequest,
+    connectionId: string | null,
   ): Promise<FootprintResponse> {
     const appLogger = new Logger("App");
     const { startDate, endDate, accounts, cloudProviderToSeed } = request;
@@ -151,11 +152,11 @@ export default class App {
         if (billingAccounts && billingAccounts.length > 0) {
           // Multi-account billing data mode
           appLogger.info(
-            `Processing ${billingAccounts.length} AWS billing accounts`
+            `Processing ${billingAccounts.length} AWS billing accounts`,
           );
           for (const billingAccount of billingAccounts) {
             appLogger.info(
-              `Processing AWS billing account: ${billingAccount.name}`
+              `Processing AWS billing account: ${billingAccount.name}`,
             );
             const athenaConfig = {
               dataBaseName: billingAccount.athenaDbName,
@@ -166,7 +167,7 @@ export default class App {
               billingAccount.id,
               billingAccount.name,
               [billingAccount.athenaRegion],
-              athenaConfig
+              athenaConfig,
             ).getDataFromCostAndUsageReports(startDate, endDate, grouping);
             AWSEstimatesByRegion.push(estimates);
           }
@@ -175,7 +176,7 @@ export default class App {
           const estimates = await new AWSAccount(
             AWS.BILLING_ACCOUNT_ID,
             AWS.BILLING_ACCOUNT_NAME,
-            [AWS.ATHENA_REGION]
+            [AWS.ATHENA_REGION],
           ).getDataFromCostAndUsageReports(startDate, endDate, grouping);
           AWSEstimatesByRegion.push(estimates);
         }
@@ -188,16 +189,16 @@ export default class App {
             const estimates = await new AWSAccount(
               account.id,
               account.name,
-              AWS.CURRENT_REGIONS
-            ).getEmbodiedMetricsForRegions(startDate, endDate);
+              AWS.CURRENT_REGIONS,
+            ).getEmbodiedMetricsForRegions(startDate, endDate, connectionId);
             AWSEmbodiedMetrics.push(estimates);
           }
           if (AWS?.INCLUDE_OPERATIONAL_METRICS) {
             const estimates = await new AWSAccount(
               account.id,
               account.name,
-              AWS.CURRENT_REGIONS
-            ).getDataForRegions(startDate, endDate, grouping);
+              AWS.CURRENT_REGIONS,
+            ).getDataForRegions(startDate, endDate, grouping, connectionId);
             AWSEstimatesByRegion.push(estimates);
           }
         }
@@ -212,7 +213,7 @@ export default class App {
         const estimates = await new GCPAccount(
           GCP.BILLING_PROJECT_ID,
           GCP.BILLING_PROJECT_NAME,
-          []
+          [],
         ).getDataFromBillingExportTable(startDate, endDate, grouping);
         GCPEstimatesByRegion.push(estimates);
       } else if (GCP?.projects.length) {
@@ -223,8 +224,8 @@ export default class App {
             await new GCPAccount(
               project.id,
               project.name,
-              GCP.CURRENT_REGIONS
-            ).getDataForRegions(startDate, endDate, grouping)
+              GCP.CURRENT_REGIONS,
+            ).getDataForRegions(startDate, endDate, grouping),
           );
           GCPEstimatesByRegion.push(estimates);
         }
@@ -241,7 +242,7 @@ export default class App {
         startDate,
         endDate,
         grouping,
-        accounts
+        accounts,
       );
       AzureEstimatesByRegion.push(estimates);
       appLogger.info("Finished Azure Estimations");
@@ -254,7 +255,7 @@ export default class App {
       const estimates = await aliAccount.getDataFromCostAndUsageReports(
         startDate,
         endDate,
-        grouping
+        grouping,
       );
       AliEstimates.push(estimates);
       appLogger.info("Finished Ali Cloud Estimations");
@@ -265,7 +266,7 @@ export default class App {
         .flat()
         .concat(GCPEstimatesByRegion.flat())
         .concat(AzureEstimatesByRegion.flat())
-        .concat(AliEstimates.flat())
+        .concat(AliEstimates.flat()),
     );
 
     return {
@@ -284,7 +285,7 @@ export default class App {
     };
 
     return Object.entries(
-      CLOUD_PROVIDER_EMISSIONS_FACTORS_METRIC_TON_PER_KWH
+      CLOUD_PROVIDER_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
     ).reduce((emissionDataResult, entry) => {
       const [cloudProvider, emissionsFactors] = entry;
       Object.keys(emissionsFactors).forEach((region) => {
@@ -299,12 +300,12 @@ export default class App {
   }
 
   async getRecommendations(
-    request: RecommendationRequest
+    request: RecommendationRequest,
   ): Promise<RecommendationResult[]> {
     if (process.env.TEST_MODE) {
       const recommendationsMock = await fs.readFile(
         recommendationsMockPath,
-        "utf8"
+        "utf8",
       );
       return JSON.parse(recommendationsMock);
     }
@@ -330,7 +331,7 @@ export default class App {
             billingAccount.id,
             billingAccount.name,
             [billingAccount.athenaRegion],
-            athenaConfig
+            athenaConfig,
           ).getDataForRecommendations(request.awsRecommendationTarget);
           AWSRecommendations.push(recommendations);
         }
@@ -339,7 +340,7 @@ export default class App {
         const recommendations = await new AWSAccount(
           AWS.BILLING_ACCOUNT_ID,
           AWS.BILLING_ACCOUNT_NAME,
-          [AWS.ATHENA_REGION]
+          [AWS.ATHENA_REGION],
         ).getDataForRecommendations(request.awsRecommendationTarget);
         AWSRecommendations.push(recommendations);
       }
@@ -351,8 +352,8 @@ export default class App {
           await new AWSAccount(
             account.id,
             account.name,
-            AWS.CURRENT_REGIONS
-          ).getDataForRecommendations(request.awsRecommendationTarget)
+            AWS.CURRENT_REGIONS,
+          ).getDataForRecommendations(request.awsRecommendationTarget),
         );
         AWSRecommendations.push(recommendations);
       }
@@ -364,7 +365,7 @@ export default class App {
       const recommendations = await new GCPAccount(
         GCP.BILLING_PROJECT_ID,
         GCP.BILLING_PROJECT_NAME,
-        []
+        [],
       ).getDataForRecommendations();
       GCPRecommendations.push(recommendations);
     } else {
@@ -373,9 +374,9 @@ export default class App {
           new GCPAccount(
             project.id,
             project.name,
-            GCP.CURRENT_REGIONS
-          ).getDataForRecommendations()
-        )
+            GCP.CURRENT_REGIONS,
+          ).getDataForRecommendations(),
+        ),
       );
     }
     allRecommendations.push(GCPRecommendations.flat());
@@ -385,7 +386,7 @@ export default class App {
       const azureAccount = new AzureAccount();
       await azureAccount.initializeAccount();
       const recommendations = await azureAccount.getDataFromAdvisorManagement(
-        request.accounts
+        request.accounts,
       );
       AzureRecommendations.push(recommendations);
     }
@@ -395,27 +396,27 @@ export default class App {
   }
 
   async getAwsEstimatesFromInputData(
-    inputData: LookupTableInput[]
+    inputData: LookupTableInput[],
   ): Promise<LookupTableOutput[]> {
     return await AWSAccount.getCostAndUsageReportsDataFromInputData(inputData);
   }
 
   async getGcpEstimatesFromInputData(
-    inputData: LookupTableInput[]
+    inputData: LookupTableInput[],
   ): Promise<LookupTableOutput[]> {
     return await GCPAccount.getBillingExportDataFromInputData(inputData);
   }
 
   async getAzureEstimatesFromInputData(
-    inputData: LookupTableInput[]
+    inputData: LookupTableInput[],
   ): Promise<LookupTableOutput[]> {
     return await AzureAccount.getDataFromConsumptionManagementInputData(
-      inputData
+      inputData,
     );
   }
 
   getOnPremiseEstimatesFromInputData(
-    inputData: OnPremiseDataInput[]
+    inputData: OnPremiseDataInput[],
   ): OnPremiseDataOutput[] {
     return OnPremise.getOnPremiseDataFromInputData(inputData);
   }

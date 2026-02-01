@@ -5,6 +5,7 @@ export {
   getDatabase,
   getDatabaseInstance,
   isDatabaseConnected,
+  saveFootprintResponse
 } from "./connection";
 
 // Database types

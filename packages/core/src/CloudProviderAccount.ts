@@ -5,57 +5,59 @@ import {
   EstimationResult,
   GroupBy,
   reduceByTimestamp,
-} from '@cloud-carbon-footprint/common'
-import { union } from 'ramda'
+} from "@cloud-carbon-footprint/common";
+import { union } from "ramda";
 
-import moment from 'moment'
-import { aggregateEstimatesByDay, FootprintEstimate, Region } from '.'
-import { aggregateCostsByDay, Cost } from './cost'
+import { saveFootprintResponse } from "@cloud-carbon-footprint/common/src/database/connection";
+import moment from "moment";
+import { aggregateEstimatesByDay, FootprintEstimate, Region } from ".";
+import { aggregateCostsByDay, Cost } from "./cost";
 
 export default class CloudProviderAccount {
-  id?: string
-  name?: string
+  id?: string;
+  name?: string;
   async getRegionData(
     cloudProvider: string,
     region: Region,
     startDate: Date,
     endDate: Date,
     grouping: GroupBy,
+    connectionId?: string | null,
   ): Promise<EstimationResult[]> {
     const [regionEstimates, regionCosts] = await Promise.all([
       region.getEstimates(startDate, endDate),
       region.getCosts(startDate, endDate),
-    ])
+    ]);
 
     const estimatesGroupByService: EstimationResult[][] = region.services.map(
       (service) => {
         const estimates: FootprintEstimate[] =
-          regionEstimates[service.serviceName]
-        const estimatesByDay = aggregateEstimatesByDay(estimates)
+          regionEstimates[service.serviceName];
+        const estimatesByDay = aggregateEstimatesByDay(estimates);
 
-        const costs: Cost[] = regionCosts[service.serviceName]
-        const costsByDay = aggregateCostsByDay(costs)
+        const costs: Cost[] = regionCosts[service.serviceName];
+        const costsByDay = aggregateCostsByDay(costs);
 
         const dates = union(
           Object.keys(estimatesByDay),
           Object.keys(costsByDay),
-        )
+        );
 
         const dataByDay = dates.reduce(
           (
             acc: {
-              [date: string]: { estimate: FootprintEstimate; cost: Cost }
+              [date: string]: { estimate: FootprintEstimate; cost: Cost };
             },
             date,
           ) => {
             acc[date] = {
               estimate: estimatesByDay[date],
               cost: costsByDay[date],
-            }
-            return acc
+            };
+            return acc;
           },
           {},
-        )
+        );
 
         const estimationResults: EstimationResult[] = Object.entries(
           dataByDay,
@@ -78,17 +80,27 @@ export default class CloudProviderAccount {
             periodStartDate: startDate,
             periodEndDate: endDate,
             groupBy: grouping,
-          }
-        })
+          };
+        });
 
-        return estimationResults
+        return estimationResults;
       },
-    )
+    );
 
-    let estimates = reduceByTimestamp(estimatesGroupByService.flat())
+    let estimates = reduceByTimestamp(estimatesGroupByService.flat());
     estimates = estimates.sort(
       (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
-    )
-    return estimates
+    );
+    // save to db first
+    if (connectionId != null) {
+      await saveFootprintResponse(
+        estimates,
+        [],
+        connectionId,
+        startDate,
+        endDate,
+      );
+    }
+    return estimates;
   }
 }

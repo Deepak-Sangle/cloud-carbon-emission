@@ -1,7 +1,11 @@
+import { EmbodiedMetricsAggregatedResult } from "@cloud-carbon-footprint/aws/src/application/AWSAccount";
+import { randomUUID } from "crypto";
 import { Kysely, PostgresDialect } from "kysely";
 import { Pool } from "pg";
+import { EstimationResult } from "../EstimationResult";
+import Logger from "../Logger";
 import configLoader from "../ConfigLoader";
-import type { Database } from "./types";
+import type { Database, NewCloudFootprint } from "./types";
 
 /**
  * Configuration options for the database connection
@@ -68,9 +72,11 @@ export function getDatabase(config?: DatabaseConfig): Kysely<Database> {
   if (!connectionString) {
     throw new Error(
       "Database connection string is required. " +
-        "Set DATABASE_URL environment variable or provide connectionString in config."
+        "Set DATABASE_URL environment variable or provide connectionString in config.",
     );
   }
+
+  console.log(connectionString);
 
   const pool = new Pool({
     connectionString,
@@ -132,4 +138,90 @@ export async function isDatabaseConnected(): Promise<boolean> {
     console.error(error);
     return false;
   }
+}
+
+export async function saveFootprintResponse(
+  estimates: EstimationResult[],
+  embodiedMetrics: EmbodiedMetricsAggregatedResult[],
+  cloudConnectionId: string,
+  startDate: Date,
+  endDate: Date,
+): Promise<number> {
+  const syncLogger = new Logger("FootprintSync");
+
+  // Flatten and save to database
+  const db = getDatabase();
+  const flattenedData: NewCloudFootprint[] = [];
+
+  for (const estimate of estimates) {
+    for (const serviceEstimate of estimate.serviceEstimates) {
+      flattenedData.push({
+        id: randomUUID(),
+        cloudConnectionId,
+        timestamp: estimate.timestamp,
+        periodStartDate: estimate.periodStartDate,
+        periodEndDate: estimate.periodEndDate,
+        cloudProvider: serviceEstimate.cloudProvider,
+        kilowattHours: serviceEstimate.kilowattHours,
+        co2e: serviceEstimate.co2e,
+        type: "OPERATIONAL_METRICS",
+        cost: serviceEstimate.cost,
+        serviceType: null,
+        serviceName: serviceEstimate.serviceName,
+        region: serviceEstimate.region,
+        tags: serviceEstimate.tags
+          ? JSON.stringify(serviceEstimate.tags)
+          : null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
+  }
+
+  for (const embodiedMetric of embodiedMetrics) {
+    const periodEndDate = embodiedMetric.timestamp;
+    periodEndDate.setDate(periodEndDate.getDate() + 1);
+    flattenedData.push({
+      id: randomUUID(),
+      cloudConnectionId,
+      timestamp: embodiedMetric.timestamp,
+      periodStartDate: embodiedMetric.timestamp,
+      periodEndDate: periodEndDate,
+      cloudProvider: "AWS",
+      serviceType: embodiedMetric.serviceType,
+      kilowattHours: embodiedMetric.kilowattHours,
+      co2e: embodiedMetric.co2e,
+      type: "EMBODIED_METRICS",
+      serviceName: embodiedMetric.serviceName,
+      region: embodiedMetric.region,
+      tags: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  }
+
+  // Upsert data to database
+  if (flattenedData.length > 0) {
+    syncLogger.info(
+      `Saving ${flattenedData.length} footprint records for connection: ${cloudConnectionId}`,
+    );
+    await db.transaction().execute(async (trx) => {
+      // Delete existing data for the connection within the date range
+      await trx
+        .deleteFrom("CloudFootprint")
+        .where("cloudConnectionId", "=", cloudConnectionId)
+        .where("timestamp", ">=", new Date(startDate))
+        .where("timestamp", "<=", new Date(endDate))
+        .execute();
+
+      // Bulk insert
+      await trx.insertInto("CloudFootprint").values(flattenedData).execute();
+    });
+
+    syncLogger.info(
+      `Successfully saved ${flattenedData.length} footprint records for connection: ${cloudConnectionId}`,
+    );
+  }
+
+  return flattenedData.length;
 }

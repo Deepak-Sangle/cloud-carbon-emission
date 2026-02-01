@@ -103,7 +103,8 @@ export const FootprintApiMiddleware = async function (
   try {
     const estimationRequest = createValidFootprintRequest(rawRequest);
     const estimationResults = await footprintApp.getCostAndEstimates(
-      estimationRequest
+      estimationRequest,
+      null,
     );
     res.json(estimationResults);
   } catch (e) {
