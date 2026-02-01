@@ -11,6 +11,7 @@ import {
   LookupTableOutput,
   RecommendationResult,
   configLoader,
+  saveFootprintResponse,
 } from "@cloud-carbon-footprint/common";
 import {
   CloudProviderAccount,
@@ -33,7 +34,10 @@ import {
   S3 as S3Service,
 } from "aws-sdk";
 import { ServiceConfigurationOptions } from "aws-sdk/lib/service";
-
+import {
+  AWS_CLOUD_CONSTANTS,
+  AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
+} from "../domain";
 import {
   AthenaConfig,
   CostAndUsageReports,
@@ -47,15 +51,8 @@ import {
   S3,
   ServiceWrapper,
 } from "../lib";
-
-import AWSCredentialsProvider from "./AWSCredentialsProvider";
-
-import { saveFootprintResponse } from "@cloud-carbon-footprint/common/src/database/connection";
-import {
-  AWS_CLOUD_CONSTANTS,
-  AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
-} from "../domain";
 import { Recommendations } from "../lib/Recommendations";
+import AWSCredentialsProvider from "./AWSCredentialsProvider";
 
 export default class AWSAccount extends CloudProviderAccount {
   private readonly credentials: Credentials;
@@ -78,7 +75,7 @@ export default class AWSAccount extends CloudProviderAccount {
     startDate: Date,
     endDate: Date,
     grouping: GroupBy,
-    connectionId: string
+    connectionId: string,
   ): Promise<EstimationResult[]> {
     const results: EstimationResult[][] = [];
     for (const regionId of this.regions) {

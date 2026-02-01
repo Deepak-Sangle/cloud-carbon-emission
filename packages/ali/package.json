@@ -3,7 +3,8 @@
   "version": "0.1.3",
   "license": "Apache-2.0",
   "description": "The core logic to get cloud usage data and estimate energy and carbon emissions from Alibaba Cloud (Aliyun).",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "src/index.ts",
   "publishConfig": {
     "main": "dist/index.js"
   },

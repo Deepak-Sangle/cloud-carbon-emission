@@ -3,7 +3,8 @@
   "version": "1.8.0",
   "license": "Apache-2.0",
   "description": "The logic to bootstrap the cloud-carbon-footprint server-side application",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "src/index.ts",
   "publishConfig": {
     "main": "dist/index.js"
   },

@@ -5,13 +5,12 @@ import {
   EstimationResult,
   GroupBy,
   reduceByTimestamp,
+  saveFootprintResponse,
 } from "@cloud-carbon-footprint/common";
-import { union } from "ramda";
-
-import { saveFootprintResponse } from "@cloud-carbon-footprint/common/src/database/connection";
 import moment from "moment";
-import { aggregateEstimatesByDay, FootprintEstimate, Region } from ".";
-import { aggregateCostsByDay, Cost } from "./cost";
+import { union } from "ramda";
+import { FootprintEstimate, Region, aggregateEstimatesByDay } from ".";
+import { Cost, aggregateCostsByDay } from "./cost";
 
 export default class CloudProviderAccount {
   id?: string;
