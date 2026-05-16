@@ -20929,7 +20929,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prop-types@npm:^15.5.7, prop-types@npm:^15.5.8, prop-types@npm:^15.6.2, prop-types@npm:^15.7.2, prop-types@npm:^15.8.1":
+"prop-types@npm:^15.5.8, prop-types@npm:^15.6.2, prop-types@npm:^15.7.2, prop-types@npm:^15.8.1":
   version: 15.8.1
   resolution: "prop-types@npm:15.8.1"
   dependencies:
@@ -21280,14 +21280,14 @@ __metadata:
   linkType: hard
 
 "react-apexcharts@npm:^1.3.9":
-  version: 1.4.0
-  resolution: "react-apexcharts@npm:1.4.0"
+  version: 1.9.0
+  resolution: "react-apexcharts@npm:1.9.0"
   dependencies:
-    prop-types: ^15.5.7
+    prop-types: ^15.8.1
   peerDependencies:
-    apexcharts: ^3.18.0
-    react: ">=0.13"
-  checksum: eb6c1fcfe7c8c9cb565edd807095633f80e8c7da115cc9aaa490b6651f771bd6bf9a48df6def4b77c6865e9170b906fa1fb8fe2b5f76b8c14ef69bca592e0f37
+    apexcharts: ">=4.0.0"
+    react: ">=16.8.0"
+  checksum: b02d2e76b214e8f582b645671646a4779f745ad7881796b08563f9f7bd304119d97b48ee9d119a0ce6e8fc254cf440e5206369e6d574b0e36fb1a2056e18086c
   languageName: node
   linkType: hard
 
